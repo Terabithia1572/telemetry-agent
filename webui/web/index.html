@@ -79,6 +79,14 @@
       <span class="text-ok font-medium" id="nav-online">— online</span>
       <span class="text-slate-500 font-medium" id="nav-offline">— offline</span>
       <div id="refresh-indicator" class="w-2 h-2 rounded-full bg-slate-600 ml-1" title="Live"></div>
+      <!-- Alert settings button -->
+      <button onclick="openAlertModal()" title="Alerts & Notifications"
+        class="ml-2 p-1.5 rounded-lg border border-surface-border bg-surface-card hover:border-accent hover:text-white text-slate-400 transition-colors flex items-center justify-center">
+        <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+          <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+        </svg>
+      </button>
     </div>
   </div>
 </nav>
@@ -219,6 +227,99 @@
         </table>
       </div>
     </div>
+  </div>
+</div>
+
+<!-- ── Alerts & Notifications modal ────────────────────────────────────── -->
+<div id="alert-modal" class="modal-backdrop hidden" onclick="closeAlertModal(event)">
+  <div class="modal" onclick="event.stopPropagation()">
+    <div class="flex items-center justify-between mb-5">
+      <div class="flex items-center gap-2.5">
+        <div class="p-2 bg-accent/10 border border-accent/30 rounded-lg text-accent">
+          <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+            <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+          </svg>
+        </div>
+        <div>
+          <h2 class="text-lg font-semibold text-white">Alerts & Notifications</h2>
+          <p class="text-xs text-slate-400">Configure threshold rules and Discord/Slack webhook dispatching.</p>
+        </div>
+      </div>
+      <button onclick="closeAlertModal()" class="text-slate-500 hover:text-white transition-colors">
+        <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+      </button>
+    </div>
+
+    <form id="alert-form" onsubmit="saveAlertSettings(event)" class="space-y-4">
+      <!-- Enable toggle -->
+      <div class="flex items-center justify-between bg-surface border border-surface-border rounded-lg p-3">
+        <div>
+          <label class="text-sm font-medium text-white block">Enable Alert Notifications</label>
+          <span class="text-xs text-slate-500">Send webhook notifications when metrics breach thresholds</span>
+        </div>
+        <label class="relative inline-flex items-center cursor-pointer">
+          <input type="checkbox" id="alert-enabled" class="sr-only peer" />
+          <div class="w-11 h-6 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:width-5 after:transition-all peer-checked:bg-accent"></div>
+        </label>
+      </div>
+
+      <!-- Webhook URL input -->
+      <div>
+        <label class="block text-xs font-medium text-slate-400 uppercase tracking-wider mb-1.5">Webhook URL (Discord / Slack)</label>
+        <input id="alert-webhook-url" type="url" placeholder="https://discord.com/api/webhooks/..."
+          class="w-full bg-surface border border-surface-border rounded-lg px-3.5 py-2 text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-accent font-mono transition-colors" />
+      </div>
+
+      <!-- Thresholds grid -->
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
+        <!-- CPU Threshold -->
+        <div class="bg-surface border border-surface-border rounded-lg p-3">
+          <label class="block text-xs text-slate-400 font-medium mb-1">CPU Threshold (%)</label>
+          <input id="alert-cpu-thresh" type="number" min="1" max="100" step="1" value="90"
+            class="w-full bg-surface-card border border-surface-border rounded-md px-2.5 py-1.5 text-sm font-mono text-white focus:outline-none focus:border-accent" />
+          <span class="text-[11px] text-slate-500 mt-1 block">Default: 90%</span>
+        </div>
+
+        <!-- Memory Threshold -->
+        <div class="bg-surface border border-surface-border rounded-lg p-3">
+          <label class="block text-xs text-slate-400 font-medium mb-1">Memory Threshold (%)</label>
+          <input id="alert-mem-thresh" type="number" min="1" max="100" step="1" value="90"
+            class="w-full bg-surface-card border border-surface-border rounded-md px-2.5 py-1.5 text-sm font-mono text-white focus:outline-none focus:border-accent" />
+          <span class="text-[11px] text-slate-500 mt-1 block">Default: 90%</span>
+        </div>
+
+        <!-- Disk Threshold -->
+        <div class="bg-surface border border-surface-border rounded-lg p-3">
+          <label class="block text-xs text-slate-400 font-medium mb-1">Disk Threshold (%)</label>
+          <input id="alert-disk-thresh" type="number" min="1" max="100" step="1" value="90"
+            class="w-full bg-surface-card border border-surface-border rounded-md px-2.5 py-1.5 text-sm font-mono text-white focus:outline-none focus:border-accent" />
+          <span class="text-[11px] text-slate-500 mt-1 block">Default: 90%</span>
+        </div>
+      </div>
+
+      <!-- Action buttons -->
+      <div class="flex items-center justify-between pt-4 border-t border-surface-border">
+        <button type="button" onclick="testAlertNotification()" id="btn-test-alert"
+          class="bg-surface border border-surface-border hover:border-slate-500 hover:text-white rounded-lg px-4 py-2 text-xs font-medium text-slate-300 transition-colors flex items-center gap-1.5">
+          <svg class="w-3.5 h-3.5 text-accent" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polygon points="5 3 19 12 5 21 5 3"/>
+          </svg>
+          Send Test Notification
+        </button>
+
+        <div class="flex items-center gap-2">
+          <button type="button" onclick="closeAlertModal()"
+            class="bg-surface-card border border-surface-border rounded-lg px-3.5 py-2 text-xs font-medium text-slate-400 hover:text-white transition-colors">
+            Cancel
+          </button>
+          <button type="submit" id="btn-save-alert"
+            class="bg-accent hover:bg-accent/90 text-white rounded-lg px-4 py-2 text-xs font-semibold shadow-sm transition-colors">
+            Save Settings
+          </button>
+        </div>
+      </div>
+    </form>
   </div>
 </div>
 
@@ -624,12 +725,109 @@ function flashIndicator(color) {
 }
 
 /* ================================================================
+   Alert Settings Modal
+   ================================================================ */
+async function openAlertModal() {
+  try {
+    const res = await fetch('/api/v1/alerts/config');
+    if (res.ok) {
+      const cfg = await res.json();
+      document.getElementById('alert-enabled').checked = !!cfg.enabled;
+      document.getElementById('alert-webhook-url').value = cfg.webhook_url || '';
+      document.getElementById('alert-cpu-thresh').value = cfg.cpu_threshold || 90;
+      document.getElementById('alert-mem-thresh').value = cfg.memory_threshold || 90;
+      document.getElementById('alert-disk-thresh').value = cfg.disk_threshold || 90;
+    }
+  } catch(e) {
+    console.warn('failed to load alert config', e);
+  }
+  document.getElementById('alert-modal').classList.remove('hidden');
+  document.body.style.overflow = 'hidden';
+}
+
+function closeAlertModal(event) {
+  if (event && event.target !== document.getElementById('alert-modal')) return;
+  document.getElementById('alert-modal').classList.add('hidden');
+  document.body.style.overflow = '';
+}
+
+async function saveAlertSettings(event) {
+  event.preventDefault();
+  const payload = {
+    enabled: document.getElementById('alert-enabled').checked,
+    webhook_url: document.getElementById('alert-webhook-url').value.trim(),
+    cpu_threshold: parseFloat(document.getElementById('alert-cpu-thresh').value) || 90,
+    memory_threshold: parseFloat(document.getElementById('alert-mem-thresh').value) || 90,
+    disk_threshold: parseFloat(document.getElementById('alert-disk-thresh').value) || 90
+  };
+
+  const btn = document.getElementById('btn-save-alert');
+  btn.disabled = true;
+  btn.classList.add('opacity-50');
+
+  try {
+    const res = await fetch('/api/v1/alerts/config', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    if (res.ok) {
+      toast('Alert settings saved successfully', 'success');
+      closeAlertModal();
+    } else {
+      const err = await res.text();
+      toast('Failed to save alert settings: ' + err, 'error');
+    }
+  } catch(e) {
+    toast('Error saving alert settings: ' + e.message, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.classList.remove('opacity-50');
+  }
+}
+
+async function testAlertNotification() {
+  const webhookUrl = document.getElementById('alert-webhook-url').value.trim();
+  if (!webhookUrl) {
+    toast('Please enter a Webhook URL first', 'warn');
+    return;
+  }
+  const btn = document.getElementById('btn-test-alert');
+  btn.disabled = true;
+  btn.classList.add('opacity-50');
+
+  try {
+    const res = await fetch('/api/v1/alerts/test', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ webhook_url: webhookUrl })
+    });
+    const data = await res.json().catch(() => ({}));
+    if (res.ok) {
+      toast('Test notification sent successfully!', 'success');
+    } else {
+      toast('Webhook test failed: ' + (data.error || 'Check URL'), 'error');
+    }
+  } catch(e) {
+    toast('Network error triggering test: ' + e.message, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.classList.remove('opacity-50');
+  }
+}
+
+/* ================================================================
    Toast notifications
    ================================================================ */
 function toast(msg, type = 'info') {
-  const colors = { info: 'bg-surface-card border-surface-border', error: 'bg-red-950 border-danger' };
+  const colors = { 
+    info: 'bg-surface-card border-surface-border text-slate-200', 
+    error: 'bg-red-950/90 border-danger text-red-200',
+    success: 'bg-green-950/90 border-ok text-emerald-200',
+    warn: 'bg-amber-950/90 border-warn text-amber-200'
+  };
   const el = document.createElement('div');
-  el.className = `border rounded-lg px-4 py-2.5 text-sm text-slate-200 shadow-lg ${colors[type] || colors.info}`;
+  el.className = `border rounded-lg px-4 py-2.5 text-sm shadow-lg ${colors[type] || colors.info}`;
   el.textContent = msg;
   const container = document.getElementById('toast-container');
   container.appendChild(el);
@@ -677,7 +875,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // ESC closes modal.
   document.addEventListener('keydown', e => {
-    if (e.key === 'Escape') { document.getElementById('modal').classList.add('hidden'); document.body.style.overflow = ''; }
+    if (e.key === 'Escape') {
+      document.getElementById('modal').classList.add('hidden');
+      document.getElementById('alert-modal').classList.add('hidden');
+      document.body.style.overflow = '';
+      activeNodeId = null;
+    }
   });
 });
 </script>

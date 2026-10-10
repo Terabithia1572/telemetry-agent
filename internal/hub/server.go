@@ -9,6 +9,8 @@ import (
 	"log/slog"
 	"net/http"
 	"time"
+
+	"github.com/telemetry-agent/internal/hub/alerting"
 )
 
 // ServerConfig groups all parameters needed to construct and run the Hub HTTP
@@ -42,6 +44,8 @@ type ServerConfig struct {
 type Server struct {
 	httpSrv *http.Server
 	store   *Store
+	alerts  *alerting.Engine
+	cancel  context.CancelFunc
 	log     *slog.Logger
 }
 
@@ -62,7 +66,8 @@ func NewServer(cfg ServerConfig) (*Server, error) {
 		return nil, fmt.Errorf("hub: open store: %w", err)
 	}
 
-	api := NewAPI(store, cfg.AuthToken, cfg.OfflineAfter, log)
+	alerts := alerting.NewEngine(store, log)
+	api := NewAPI(store, cfg.AuthToken, cfg.OfflineAfter, alerts, log)
 
 	mux := http.NewServeMux()
 
@@ -89,6 +94,7 @@ func NewServer(cfg ServerConfig) (*Server, error) {
 	return &Server{
 		httpSrv: httpSrv,
 		store:   store,
+		alerts:  alerts,
 		log:     log,
 	}, nil
 }
@@ -97,6 +103,11 @@ func NewServer(cfg ServerConfig) (*Server, error) {
 // to [Shutdown] or a listener error).
 func (s *Server) Run() error {
 	s.log.Info("hub listening", "addr", s.httpSrv.Addr)
+
+	alertCtx, cancel := context.WithCancel(context.Background())
+	s.cancel = cancel
+	go s.alerts.Start(alertCtx)
+
 	if err := s.httpSrv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 		return fmt.Errorf("hub: listen: %w", err)
 	}
@@ -106,6 +117,9 @@ func (s *Server) Run() error {
 // Shutdown gracefully drains active connections within timeout and closes the
 // database.
 func (s *Server) Shutdown(ctx context.Context) {
+	if s.cancel != nil {
+		s.cancel()
+	}
 	if err := s.httpSrv.Shutdown(ctx); err != nil {
 		s.log.Warn("hub: shutdown error", "error", err)
 	}

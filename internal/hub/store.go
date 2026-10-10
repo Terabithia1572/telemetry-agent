@@ -23,6 +23,7 @@ import (
 
 	_ "modernc.org/sqlite" // register "sqlite" driver
 
+	"github.com/telemetry-agent/internal/hub/alerting"
 	"github.com/telemetry-agent/internal/model"
 )
 
@@ -116,6 +117,14 @@ func applySchema(db *sql.DB) error {
 			net_tx_bytes INTEGER NOT NULL DEFAULT 0
 		)`,
 		`CREATE INDEX IF NOT EXISTS idx_metrics_node_ts ON metrics_history(node_id, timestamp DESC)`,
+		`CREATE TABLE IF NOT EXISTS alert_settings (
+			id               INTEGER PRIMARY KEY CHECK (id = 1),
+			webhook_url      TEXT NOT NULL DEFAULT '',
+			cpu_threshold    REAL NOT NULL DEFAULT 90.0,
+			memory_threshold REAL NOT NULL DEFAULT 90.0,
+			disk_threshold   REAL NOT NULL DEFAULT 90.0,
+			enabled          INTEGER NOT NULL DEFAULT 0
+		)`,
 	}
 
 	for _, stmt := range stmts {
@@ -127,6 +136,7 @@ func applySchema(db *sql.DB) error {
 	// Ensure processes and containers columns exist in case nodes table was created in an earlier migration
 	_, _ = db.Exec(`ALTER TABLE nodes ADD COLUMN processes TEXT NOT NULL DEFAULT '[]'`)
 	_, _ = db.Exec(`ALTER TABLE nodes ADD COLUMN containers TEXT NOT NULL DEFAULT '[]'`)
+	_, _ = db.Exec(`INSERT OR IGNORE INTO alert_settings (id, webhook_url, cpu_threshold, memory_threshold, disk_threshold, enabled) VALUES (1, '', 90.0, 90.0, 90.0, 0)`)
 
 	return nil
 }
@@ -367,6 +377,71 @@ type IngestParams struct {
 	NetTxBytes    uint64
 	Processes     []model.ProcessInfo
 	Containers    []model.ContainerInfo
+}
+
+// GetAlertSettings returns the current threshold and webhook configuration.
+func (s *Store) GetAlertSettings(ctx context.Context) (alerting.Settings, error) {
+	row := s.db.QueryRowContext(ctx, `
+		SELECT webhook_url, cpu_threshold, memory_threshold, disk_threshold, enabled
+		FROM alert_settings WHERE id = 1`)
+
+	var cfg alerting.Settings
+	var enabledInt int
+	if err := row.Scan(&cfg.WebhookURL, &cfg.CPUThreshold, &cfg.MemoryThreshold, &cfg.DiskThreshold, &enabledInt); err != nil {
+		if err == sql.ErrNoRows {
+			return alerting.Settings{
+				CPUThreshold:    90.0,
+				MemoryThreshold: 90.0,
+				DiskThreshold:   90.0,
+				Enabled:         false,
+			}, nil
+		}
+		return cfg, fmt.Errorf("store: get alert settings: %w", err)
+	}
+	cfg.Enabled = enabledInt == 1
+	return cfg, nil
+}
+
+// SaveAlertSettings upserts the threshold and webhook configuration.
+func (s *Store) SaveAlertSettings(ctx context.Context, cfg alerting.Settings) error {
+	enabledInt := 0
+	if cfg.Enabled {
+		enabledInt = 1
+	}
+
+	_, err := s.db.ExecContext(ctx, `
+		INSERT INTO alert_settings (id, webhook_url, cpu_threshold, memory_threshold, disk_threshold, enabled)
+		VALUES (1, ?, ?, ?, ?, ?)
+		ON CONFLICT(id) DO UPDATE SET
+			webhook_url      = excluded.webhook_url,
+			cpu_threshold    = excluded.cpu_threshold,
+			memory_threshold = excluded.memory_threshold,
+			disk_threshold   = excluded.disk_threshold,
+			enabled          = excluded.enabled`,
+		cfg.WebhookURL, cfg.CPUThreshold, cfg.MemoryThreshold, cfg.DiskThreshold, enabledInt,
+	)
+	if err != nil {
+		return fmt.Errorf("store: save alert settings: %w", err)
+	}
+	return nil
+}
+
+// GetNodeStatuses returns minimal host status records for offline monitoring.
+func (s *Store) GetNodeStatuses(ctx context.Context, offlineAfter time.Duration) ([]alerting.NodeStatus, error) {
+	nodes, err := s.GetNodes(ctx, offlineAfter)
+	if err != nil {
+		return nil, err
+	}
+	statuses := make([]alerting.NodeStatus, len(nodes))
+	for i, n := range nodes {
+		statuses[i] = alerting.NodeStatus{
+			NodeID:   n.NodeID,
+			Hostname: n.Hostname,
+			LastSeen: n.LastSeen,
+			Status:   n.Status,
+		}
+	}
+	return statuses, nil
 }
 
 // min returns the smaller of a and b (backport for Go <1.21 build compat).

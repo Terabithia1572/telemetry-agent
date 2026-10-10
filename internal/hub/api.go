@@ -19,6 +19,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/telemetry-agent/internal/hub/alerting"
 	"github.com/telemetry-agent/internal/model"
 )
 
@@ -26,19 +27,21 @@ import (
 
 // API bundles the HTTP handlers with their shared dependencies.
 type API struct {
-	store       *Store
-	authToken   string // empty → no authentication enforced
+	store        *Store
+	authToken    string // empty → no authentication enforced
 	offlineAfter time.Duration
-	log         *slog.Logger
-	broker      *SSEBroker
+	engine       *alerting.Engine
+	log          *slog.Logger
+	broker       *SSEBroker
 }
 
 // NewAPI constructs an [API] ready to be registered on a [*http.ServeMux].
-func NewAPI(store *Store, authToken string, offlineAfter time.Duration, log *slog.Logger) *API {
+func NewAPI(store *Store, authToken string, offlineAfter time.Duration, engine *alerting.Engine, log *slog.Logger) *API {
 	return &API{
 		store:        store,
 		authToken:    authToken,
 		offlineAfter: offlineAfter,
+		engine:       engine,
 		log:          log,
 		broker:       NewSSEBroker(),
 	}
@@ -50,6 +53,11 @@ func (a *API) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/v1/nodes", a.handleListNodes)
 	mux.HandleFunc("GET /api/v1/nodes/", a.handleNodeRoute) // matches /api/v1/nodes/{id} and /api/v1/nodes/{id}/history
 	mux.HandleFunc("GET /api/v1/events", a.handleSSE)
+
+	// Alert settings & testing
+	mux.HandleFunc("GET /api/v1/alerts/config", a.handleGetAlertConfig)
+	mux.HandleFunc("POST /api/v1/alerts/config", a.handleSaveAlertConfig)
+	mux.HandleFunc("POST /api/v1/alerts/test", a.handleTestAlert)
 }
 
 // ── Ingest ────────────────────────────────────────────────────────────────────
@@ -89,6 +97,17 @@ func (a *API) handleIngest(w http.ResponseWriter, r *http.Request) {
 
 	// Notify SSE subscribers so the dashboard updates immediately.
 	go a.broker.Broadcast(r.Context())
+
+	// Evaluate threshold alerting
+	if a.engine != nil {
+		a.engine.EvaluateIngest(r.Context(), alerting.IngestMetrics{
+			NodeID:      p.NodeID,
+			Hostname:    p.Hostname,
+			CPUPercent:  p.CPUPercent,
+			MemPercent:  p.MemPercent,
+			DiskPercent: p.DiskPercent,
+		})
+	}
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusAccepted)
@@ -330,4 +349,64 @@ func (a *API) jsonError(w http.ResponseWriter, code int, msg string) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(code)
 	fmt.Fprintf(w, `{"error":%q}`, msg)
+}
+
+// ── Alert settings handlers ───────────────────────────────────────────────────
+
+func (a *API) handleGetAlertConfig(w http.ResponseWriter, r *http.Request) {
+	cfg, err := a.store.GetAlertSettings(r.Context())
+	if err != nil {
+		a.log.Error("get alert config error", "error", err)
+		a.jsonError(w, http.StatusInternalServerError, "failed to load alert settings")
+		return
+	}
+	a.jsonOK(w, cfg)
+}
+
+func (a *API) handleSaveAlertConfig(w http.ResponseWriter, r *http.Request) {
+	if !a.checkAuth(w, r) {
+		return
+	}
+
+	var cfg alerting.Settings
+	if err := json.NewDecoder(r.Body).Decode(&cfg); err != nil {
+		a.jsonError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	if err := a.store.SaveAlertSettings(r.Context(), cfg); err != nil {
+		a.log.Error("save alert config error", "error", err)
+		a.jsonError(w, http.StatusInternalServerError, "failed to save alert settings")
+		return
+	}
+
+	if a.engine != nil {
+		a.engine.UpdateSettings(cfg)
+	}
+
+	a.jsonOK(w, map[string]any{"status": "saved", "config": cfg})
+}
+
+func (a *API) handleTestAlert(w http.ResponseWriter, r *http.Request) {
+	if !a.checkAuth(w, r) {
+		return
+	}
+
+	var req struct {
+		WebhookURL string `json:"webhook_url"`
+	}
+	_ = json.NewDecoder(r.Body).Decode(&req)
+
+	if a.engine == nil {
+		a.jsonError(w, http.StatusInternalServerError, "alert engine not available")
+		return
+	}
+
+	if err := a.engine.TestWebhook(r.Context(), req.WebhookURL); err != nil {
+		a.log.Warn("test alert webhook failed", "error", err)
+		a.jsonError(w, http.StatusBadRequest, fmt.Sprintf("webhook test failed: %v", err))
+		return
+	}
+
+	a.jsonOK(w, map[string]string{"status": "ok", "message": "Test notification delivered successfully"})
 }
