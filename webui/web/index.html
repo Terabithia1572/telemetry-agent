@@ -1,0 +1,495 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Telemetry Hub</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            surface: { DEFAULT: '#0f1117', card: '#1a1d27', border: '#2a2d3e' },
+            accent:  { DEFAULT: '#6366f1', hover: '#818cf8', muted: '#312e81' },
+            ok:      '#22c55e',
+            warn:    '#f59e0b',
+            danger:  '#ef4444',
+          },
+          fontFamily: { mono: ['JetBrains Mono', 'Fira Code', 'monospace'] },
+        }
+      }
+    }
+  </script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    * { box-sizing: border-box; }
+    body { font-family: 'Inter', sans-serif; background: #0f1117; }
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: #0f1117; }
+    ::-webkit-scrollbar-thumb { background: #2a2d3e; border-radius: 3px; }
+
+    .stat-bar-track { background: #2a2d3e; border-radius: 9999px; overflow: hidden; height: 6px; }
+    .stat-bar-fill  { height: 100%; border-radius: 9999px; transition: width 0.6s ease; }
+
+    .pulse-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+    .pulse-online  { background: #22c55e; box-shadow: 0 0 0 0 rgba(34,197,94,0.6); animation: pulse 2s infinite; }
+    .pulse-offline { background: #6b7280; }
+
+    @keyframes pulse {
+      0%   { box-shadow: 0 0 0 0 rgba(34,197,94,0.6); }
+      70%  { box-shadow: 0 0 0 6px rgba(34,197,94,0); }
+      100% { box-shadow: 0 0 0 0 rgba(34,197,94,0); }
+    }
+
+    .card-hover { transition: border-color 0.2s, transform 0.15s; }
+    .card-hover:hover { border-color: #6366f1; transform: translateY(-2px); }
+
+    .modal-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 50; display: flex; align-items: center; justify-content: center; }
+    .modal { background: #1a1d27; border: 1px solid #2a2d3e; border-radius: 12px; padding: 24px; width: min(700px, 96vw); max-height: 90vh; overflow-y: auto; }
+
+    .skeleton { background: linear-gradient(90deg, #1a1d27 25%, #22263a 50%, #1a1d27 75%); background-size: 200% 100%; animation: shimmer 1.5s infinite; border-radius: 8px; }
+    @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+
+    canvas { max-height: 160px; }
+  </style>
+</head>
+
+<body class="min-h-screen text-slate-200">
+
+<!-- ── Top navigation bar ─────────────────────────────────────────────── -->
+<nav class="sticky top-0 z-40 border-b border-surface-border bg-surface/90 backdrop-blur">
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between">
+    <div class="flex items-center gap-3">
+      <!-- Logo / icon -->
+      <svg class="w-7 h-7 text-accent" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+        <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+      </svg>
+      <span class="font-semibold text-base tracking-tight text-white">Telemetry Hub</span>
+      <span id="hub-version" class="text-xs text-slate-500 font-mono hidden sm:block"></span>
+    </div>
+
+    <div class="flex items-center gap-4 text-sm">
+      <span class="text-slate-500">Nodes:</span>
+      <span id="nav-total"  class="font-semibold text-white">—</span>
+      <span class="text-slate-600">|</span>
+      <span class="text-ok font-medium" id="nav-online">— online</span>
+      <span class="text-slate-500 font-medium" id="nav-offline">— offline</span>
+      <div id="refresh-indicator" class="w-2 h-2 rounded-full bg-slate-600 ml-1" title="Live"></div>
+    </div>
+  </div>
+</nav>
+
+<!-- ── Main content ────────────────────────────────────────────────────── -->
+<main class="max-w-7xl mx-auto px-4 sm:px-6 py-8">
+
+  <!-- Search & filter bar -->
+  <div class="flex flex-col sm:flex-row gap-3 mb-6">
+    <input id="search-input"
+      type="text" placeholder="Filter nodes by hostname or OS…"
+      class="flex-1 bg-surface-card border border-surface-border rounded-lg px-4 py-2 text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:border-accent transition-colors" />
+    <select id="status-filter"
+      class="bg-surface-card border border-surface-border rounded-lg px-3 py-2 text-sm text-slate-300 focus:outline-none focus:border-accent">
+      <option value="all">All statuses</option>
+      <option value="online">Online only</option>
+      <option value="offline">Offline only</option>
+    </select>
+    <button onclick="fetchNodes()" title="Refresh"
+      class="bg-surface-card border border-surface-border rounded-lg px-4 py-2 text-sm text-slate-300 hover:border-accent hover:text-white transition-colors flex items-center gap-2">
+      <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+      </svg>
+      Refresh
+    </button>
+  </div>
+
+  <!-- Skeleton loaders (shown while first fetch pending) -->
+  <div id="skeleton-grid" class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+    <div class="skeleton h-52 rounded-xl"></div>
+    <div class="skeleton h-52 rounded-xl"></div>
+    <div class="skeleton h-52 rounded-xl"></div>
+  </div>
+
+  <!-- Node cards grid -->
+  <div id="nodes-grid" class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4 hidden"></div>
+
+  <!-- Empty state -->
+  <div id="empty-state" class="hidden flex flex-col items-center justify-center py-24 text-center">
+    <svg class="w-14 h-14 text-slate-700 mb-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2">
+      <rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/>
+    </svg>
+    <p class="text-slate-400 text-base font-medium">No nodes connected yet</p>
+    <p class="text-slate-600 text-sm mt-1">Start a telemetry agent to see nodes appear here.</p>
+    <pre class="mt-4 text-xs text-accent font-mono bg-surface-card border border-surface-border rounded-lg px-4 py-3 text-left">./telemetry-agent --hub-url http://localhost:8080</pre>
+  </div>
+
+</main>
+
+<!-- ── Node detail modal ───────────────────────────────────────────────── -->
+<div id="modal" class="modal-backdrop hidden" onclick="closeModal(event)">
+  <div class="modal" onclick="event.stopPropagation()">
+    <div class="flex items-center justify-between mb-5">
+      <h2 id="modal-title" class="text-lg font-semibold text-white"></h2>
+      <button onclick="closeModal()" class="text-slate-500 hover:text-white transition-colors">
+        <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+      </button>
+    </div>
+
+    <!-- Meta grid -->
+    <div id="modal-meta" class="grid grid-cols-2 gap-3 mb-6 text-sm"></div>
+
+    <!-- Charts -->
+    <div class="space-y-5">
+      <div>
+        <p class="text-xs text-slate-500 font-medium uppercase tracking-wider mb-2">CPU % — last hour</p>
+        <canvas id="chart-cpu"></canvas>
+      </div>
+      <div>
+        <p class="text-xs text-slate-500 font-medium uppercase tracking-wider mb-2">Memory % — last hour</p>
+        <canvas id="chart-mem"></canvas>
+      </div>
+      <div>
+        <p class="text-xs text-slate-500 font-medium uppercase tracking-wider mb-2">Disk % — last hour</p>
+        <canvas id="chart-disk"></canvas>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Toast notifications ─────────────────────────────────────────────── -->
+<div id="toast-container" class="fixed bottom-4 right-4 flex flex-col gap-2 z-50"></div>
+
+<!-- ── JavaScript ─────────────────────────────────────────────────────── -->
+<script>
+/* ================================================================
+   State
+   ================================================================ */
+let allNodes     = [];
+let charts       = {};
+let sseSource    = null;
+let activeNodeId = null;
+
+const POLL_INTERVAL = 5000; // fallback polling interval ms
+const BAR_OK   = '#22c55e';
+const BAR_WARN = '#f59e0b';
+const BAR_CRIT = '#ef4444';
+const CHART_DEFAULTS = {
+  responsive: true,
+  maintainAspectRatio: false,
+  animation: { duration: 400 },
+  plugins: { legend: { display: false }, tooltip: {
+    backgroundColor: '#1a1d27',
+    borderColor: '#2a2d3e',
+    borderWidth: 1,
+    titleColor: '#94a3b8',
+    bodyColor: '#e2e8f0',
+    callbacks: { label: ctx => ` ${ctx.parsed.y.toFixed(1)} %` }
+  }},
+  scales: {
+    x: { display: false },
+    y: {
+      min: 0, max: 100,
+      grid: { color: '#2a2d3e' },
+      ticks: { color: '#64748b', font: { size: 10 }, callback: v => v + '%' }
+    }
+  }
+};
+
+/* ================================================================
+   SSE – real-time push
+   ================================================================ */
+function connectSSE() {
+  if (sseSource) return;
+  sseSource = new EventSource('/api/v1/events');
+  sseSource.addEventListener('nodes', e => {
+    try { renderNodes(JSON.parse(e.data)); } catch(_) {}
+  });
+  sseSource.onerror = () => {
+    sseSource.close();
+    sseSource = null;
+    // Fall back to polling until SSE reconnects.
+    setTimeout(connectSSE, 5000);
+  };
+}
+
+/* ================================================================
+   REST fetch (used on load and manual refresh)
+   ================================================================ */
+async function fetchNodes() {
+  try {
+    const res = await fetch('/api/v1/nodes');
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    renderNodes(await res.json());
+    flashIndicator('#22c55e');
+  } catch(e) {
+    flashIndicator('#ef4444');
+    toast('Could not reach hub: ' + e.message, 'error');
+  }
+}
+
+/* ================================================================
+   Render node grid
+   ================================================================ */
+function renderNodes(nodes) {
+  allNodes = Array.isArray(nodes) ? nodes : [];
+  applyFilters();
+  updateNavStats();
+  document.getElementById('skeleton-grid').classList.add('hidden');
+}
+
+function applyFilters() {
+  const query  = document.getElementById('search-input').value.toLowerCase();
+  const status = document.getElementById('status-filter').value;
+
+  const filtered = allNodes.filter(n => {
+    const matchText = !query ||
+      n.hostname.toLowerCase().includes(query) ||
+      n.os.toLowerCase().includes(query) ||
+      n.platform.toLowerCase().includes(query) ||
+      n.node_id.toLowerCase().includes(query);
+    const matchStatus = status === 'all' || n.status === status;
+    return matchText && matchStatus;
+  });
+
+  const grid = document.getElementById('nodes-grid');
+  const empty = document.getElementById('empty-state');
+
+  if (filtered.length === 0) {
+    grid.classList.add('hidden');
+    empty.classList.remove('hidden');
+  } else {
+    empty.classList.add('hidden');
+    grid.classList.remove('hidden');
+    grid.innerHTML = filtered.map(nodeCard).join('');
+  }
+}
+
+function nodeCard(n) {
+  const statusDot = n.status === 'online'
+    ? '<span class="pulse-dot pulse-online"></span>'
+    : '<span class="pulse-dot pulse-offline"></span>';
+
+  const lastSeen = n.last_seen
+    ? relativeTime(new Date(n.last_seen))
+    : '—';
+
+  const bytesRx = fmtBytes(n.net_rx_bytes);
+  const bytesTx = fmtBytes(n.net_tx_bytes);
+
+  return `
+  <article
+    class="bg-surface-card border border-surface-border rounded-xl p-5 cursor-pointer card-hover"
+    onclick="openModal('${escHtml(n.node_id)}')"
+    title="Click for detailed charts"
+  >
+    <!-- Card header -->
+    <div class="flex items-start justify-between mb-4">
+      <div class="min-w-0">
+        <div class="flex items-center gap-2">
+          ${statusDot}
+          <h3 class="font-semibold text-white text-sm truncate max-w-[180px]">${escHtml(n.hostname)}</h3>
+        </div>
+        <p class="text-xs text-slate-500 mt-0.5 font-mono truncate">${escHtml(n.node_id)}</p>
+      </div>
+      <div class="flex flex-col items-end gap-1 shrink-0">
+        <span class="text-xs px-2 py-0.5 rounded-full font-medium ${n.status === 'online' ? 'bg-green-900/50 text-ok' : 'bg-slate-800 text-slate-400'}">
+          ${n.status}
+        </span>
+        <span class="text-xs text-slate-600">${escHtml(n.os)}/${escHtml(n.platform)}</span>
+      </div>
+    </div>
+
+    <!-- Stat bars -->
+    <div class="space-y-2.5">
+      ${statBar('CPU',  n.cpu_percent)}
+      ${statBar('RAM',  n.mem_percent)}
+      ${statBar('Disk', n.disk_percent)}
+    </div>
+
+    <!-- Footer -->
+    <div class="mt-4 flex items-center justify-between text-xs text-slate-600">
+      <span>↓ ${bytesRx} / ↑ ${bytesTx}</span>
+      <span>${lastSeen}</span>
+    </div>
+  </article>`;
+}
+
+function statBar(label, pct) {
+  const p    = Math.min(100, Math.max(0, pct || 0));
+  const color = p > 85 ? BAR_CRIT : p > 65 ? BAR_WARN : BAR_OK;
+  return `
+  <div>
+    <div class="flex justify-between items-center mb-1">
+      <span class="text-xs text-slate-500">${label}</span>
+      <span class="text-xs font-mono font-medium" style="color:${color}">${p.toFixed(1)}%</span>
+    </div>
+    <div class="stat-bar-track">
+      <div class="stat-bar-fill" style="width:${p}%;background:${color}"></div>
+    </div>
+  </div>`;
+}
+
+/* ================================================================
+   Nav stats
+   ================================================================ */
+function updateNavStats() {
+  const online  = allNodes.filter(n => n.status === 'online').length;
+  const offline = allNodes.length - online;
+  document.getElementById('nav-total').textContent   = allNodes.length;
+  document.getElementById('nav-online').textContent  = `${online} online`;
+  document.getElementById('nav-offline').textContent = `${offline} offline`;
+}
+
+/* ================================================================
+   Modal – node detail + charts
+   ================================================================ */
+async function openModal(nodeId) {
+  activeNodeId = nodeId;
+  const n = allNodes.find(x => x.node_id === nodeId);
+  if (!n) return;
+
+  document.getElementById('modal-title').textContent = n.hostname;
+
+  const meta = [
+    ['Node ID',    n.node_id],
+    ['OS',         `${n.os} / ${n.platform}`],
+    ['Kernel',     n.kernel_version || '—'],
+    ['Agent',      n.agent_version  || '—'],
+    ['Status',     n.status],
+    ['Last seen',  n.last_seen ? new Date(n.last_seen).toLocaleString() : '—'],
+  ];
+  document.getElementById('modal-meta').innerHTML = meta.map(([k,v]) => `
+    <div class="bg-surface border border-surface-border rounded-lg px-3 py-2">
+      <p class="text-xs text-slate-500 mb-0.5">${k}</p>
+      <p class="text-sm text-white font-mono truncate">${escHtml(String(v))}</p>
+    </div>`).join('');
+
+  document.getElementById('modal').classList.remove('hidden');
+  document.body.style.overflow = 'hidden';
+
+  // Destroy old chart instances.
+  Object.values(charts).forEach(c => c.destroy());
+  charts = {};
+
+  // Fetch history.
+  try {
+    const res  = await fetch(`/api/v1/nodes/${encodeURIComponent(nodeId)}/history?window=1h`);
+    const pts  = await res.json();
+    drawChart('chart-cpu',  pts, 'cpu_percent',  '#6366f1');
+    drawChart('chart-mem',  pts, 'mem_percent',  '#06b6d4');
+    drawChart('chart-disk', pts, 'disk_percent', '#f59e0b');
+  } catch(e) {
+    console.warn('history fetch failed', e);
+  }
+}
+
+function closeModal(event) {
+  if (event && event.target !== document.getElementById('modal')) return;
+  document.getElementById('modal').classList.add('hidden');
+  document.body.style.overflow = '';
+  activeNodeId = null;
+  Object.values(charts).forEach(c => c.destroy());
+  charts = {};
+}
+
+function drawChart(canvasId, points, field, color) {
+  const canvas = document.getElementById(canvasId);
+  if (!canvas) return;
+
+  const labels = (points || []).map(p => {
+    const d = new Date(p.timestamp);
+    return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  });
+  const data = (points || []).map(p => p[field] || 0);
+
+  charts[canvasId] = new Chart(canvas, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [{
+        data,
+        borderColor: color,
+        borderWidth: 2,
+        pointRadius: data.length > 60 ? 0 : 2,
+        pointHoverRadius: 4,
+        fill: true,
+        backgroundColor: color + '1a',
+        tension: 0.3,
+      }]
+    },
+    options: { ...CHART_DEFAULTS }
+  });
+}
+
+/* ================================================================
+   Refresh indicator flash
+   ================================================================ */
+function flashIndicator(color) {
+  const el = document.getElementById('refresh-indicator');
+  el.style.background = color;
+  setTimeout(() => { el.style.background = '#22c55e'; }, 400);
+}
+
+/* ================================================================
+   Toast notifications
+   ================================================================ */
+function toast(msg, type = 'info') {
+  const colors = { info: 'bg-surface-card border-surface-border', error: 'bg-red-950 border-danger' };
+  const el = document.createElement('div');
+  el.className = `border rounded-lg px-4 py-2.5 text-sm text-slate-200 shadow-lg ${colors[type] || colors.info}`;
+  el.textContent = msg;
+  const container = document.getElementById('toast-container');
+  container.appendChild(el);
+  setTimeout(() => el.remove(), 4000);
+}
+
+/* ================================================================
+   Utility helpers
+   ================================================================ */
+function escHtml(s) {
+  return String(s)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function fmtBytes(b) {
+  if (!b) return '0 B';
+  const u = ['B','KB','MB','GB','TB'];
+  let i = 0;
+  let v = Number(b);
+  while (v >= 1024 && i < u.length - 1) { v /= 1024; i++; }
+  return `${v.toFixed(1)} ${u[i]}`;
+}
+
+function relativeTime(date) {
+  const delta = Math.floor((Date.now() - date) / 1000);
+  if (delta <  60) return `${delta}s ago`;
+  if (delta < 3600) return `${Math.floor(delta/60)}m ago`;
+  return `${Math.floor(delta/3600)}h ago`;
+}
+
+/* ================================================================
+   Init
+   ================================================================ */
+document.addEventListener('DOMContentLoaded', () => {
+  fetchNodes();
+  connectSSE();
+
+  // Fallback polling for environments where SSE is proxied away.
+  setInterval(fetchNodes, POLL_INTERVAL);
+
+  // Filter on input change.
+  document.getElementById('search-input').addEventListener('input', applyFilters);
+  document.getElementById('status-filter').addEventListener('change', applyFilters);
+
+  // ESC closes modal.
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') { document.getElementById('modal').classList.add('hidden'); document.body.style.overflow = ''; }
+  });
+});
+</script>
+</body>
+</html>

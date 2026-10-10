@@ -83,18 +83,27 @@ A **zero-dependency, ultra-lightweight system telemetry agent** written in pure 
 
 ```
 telemetry-agent/
-├── cmd/agent/main.go           # Wiring: config → logger → sender → orchestrator
+├── cmd/
+│   ├── agent/main.go           # Agent entrypoint: config → logger → sender → orchestrator
+│   └── hub/main.go             # Hub entrypoint: sqlite store → REST API → embedded web dashboard
 ├── internal/
 │   ├── config/config.go        # Flags + ENV → validated Config struct
 │   ├── model/metrics.go        # TelemetryReport and all sub-types (JSON)
 │   ├── collector/
 │   │   ├── collector.go        # Collector interface + Orchestrator ticker
 │   │   └── system.go           # Host, CPU, Memory, Disk, Network collectors
-│   └── transport/
-│       ├── sender.go           # Sender interface (Send + Close)
-│       └── http_sender.go      # HTTP POST + exponential backoff with jitter
-├── scripts/build.sh            # Size-optimised release build
-├── Makefile
+│   ├── transport/
+│   │   ├── sender.go           # Sender interface (Send + Close)
+│   │   └── http_sender.go      # HTTP POST + exponential backoff with jitter
+│   └── hub/
+│       ├── store.go            # Pure-Go SQLite persistence layer (modernc.org/sqlite)
+│       ├── api.go              # REST API endpoints, auth middleware & SSE broker
+│       └── server.go           # HTTP server, CORS, access logs & graceful shutdown
+├── webui/
+│   ├── embed.go                # go:embed static asset package
+│   └── web/index.html          # Embedded dark-mode Tailwind + Chart.js dashboard
+├── scripts/build.sh            # Size-optimised release build script
+├── Makefile                    # Targets: build, build-hub, build-all, run, run-hub, test
 └── README.md
 ```
 

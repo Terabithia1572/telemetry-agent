@@ -1,10 +1,11 @@
-# Makefile for telemetry-agent
+# Makefile for telemetry-agent + telemetry-hub
 # Compatible with GNU Make 3.82+ on Linux/macOS/WSL.
 # On Windows (native PowerShell), use the build.sh script via Git Bash or WSL.
 
 # ── Variables ─────────────────────────────────────────────────────────────────
 MODULE        := github.com/telemetry-agent
 CMD_PKG       := ./cmd/agent
+HUB_PKG       := ./cmd/hub
 DIST_DIR      := ./dist
 BINARY        := $(DIST_DIR)/telemetry-agent
 VERSION       ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
@@ -40,7 +41,7 @@ deps: ## Download and tidy module dependencies
 	$(GO) mod verify
 
 .PHONY: build
-build: $(DIST_DIR) ## Build the release binary (stripped, statically linked)
+build: $(DIST_DIR) ## Build the agent release binary (stripped, statically linked)
 	$(GOBUILD) \
 		-trimpath \
 		-ldflags="$(LDFLAGS)" \
@@ -49,11 +50,26 @@ build: $(DIST_DIR) ## Build the release binary (stripped, statically linked)
 	@echo "Built: $(BINARY)"
 	@ls -lh $(BINARY)
 
+.PHONY: build-hub
+build-hub: $(DIST_DIR) ## Build the hub release binary with embedded web dashboard
+	$(GOBUILD) \
+		-trimpath \
+		-ldflags="$(LDFLAGS)" \
+		-o $(DIST_DIR)/telemetry-hub \
+		$(HUB_PKG)
+	@echo "Built: $(DIST_DIR)/telemetry-hub"
+	@ls -lh $(DIST_DIR)/telemetry-hub
+
 .PHONY: build-all
-build-all: $(DIST_DIR) ## Cross-compile for linux/amd64, linux/arm64, and windows/amd64
-	GOOS=linux  GOARCH=amd64 $(GOBUILD) -trimpath -ldflags="$(LDFLAGS)" -o $(DIST_DIR)/telemetry-agent-linux-amd64  $(CMD_PKG)
-	GOOS=linux  GOARCH=arm64 $(GOBUILD) -trimpath -ldflags="$(LDFLAGS)" -o $(DIST_DIR)/telemetry-agent-linux-arm64  $(CMD_PKG)
+build-all: $(DIST_DIR) ## Cross-compile agent + hub for linux/amd64, linux/arm64, windows/amd64
+	@echo "── Agent binaries ──"
+	GOOS=linux   GOARCH=amd64 $(GOBUILD) -trimpath -ldflags="$(LDFLAGS)" -o $(DIST_DIR)/telemetry-agent-linux-amd64   $(CMD_PKG)
+	GOOS=linux   GOARCH=arm64 $(GOBUILD) -trimpath -ldflags="$(LDFLAGS)" -o $(DIST_DIR)/telemetry-agent-linux-arm64   $(CMD_PKG)
 	GOOS=windows GOARCH=amd64 $(GOBUILD) -trimpath -ldflags="$(LDFLAGS)" -o $(DIST_DIR)/telemetry-agent-windows-amd64.exe $(CMD_PKG)
+	@echo "── Hub binaries ──"
+	GOOS=linux   GOARCH=amd64 $(GOBUILD) -trimpath -ldflags="$(LDFLAGS)" -o $(DIST_DIR)/telemetry-hub-linux-amd64    $(HUB_PKG)
+	GOOS=linux   GOARCH=arm64 $(GOBUILD) -trimpath -ldflags="$(LDFLAGS)" -o $(DIST_DIR)/telemetry-hub-linux-arm64    $(HUB_PKG)
+	GOOS=windows GOARCH=amd64 $(GOBUILD) -trimpath -ldflags="$(LDFLAGS)" -o $(DIST_DIR)/telemetry-hub-windows-amd64.exe $(HUB_PKG)
 	@echo "Cross-compiled binaries:"
 	@ls -lh $(DIST_DIR)/
 
@@ -62,6 +78,13 @@ run: ## Run the agent locally (requires HUB_URL or --hub-url)
 	$(GO) run $(CMD_PKG) \
 		--hub-url=$${HUB_URL:-http://localhost:8080} \
 		--interval=$${INTERVAL:-15s} \
+		--log-level=$${LOG_LEVEL:-debug}
+
+.PHONY: run-hub
+run-hub: ## Run the hub locally on :8080 (dashboard at http://localhost:8080)
+	$(GO) run $(HUB_PKG) \
+		--listen=$${HUB_LISTEN:-:8080} \
+		--db=$${HUB_DB:-telemetry.db} \
 		--log-level=$${LOG_LEVEL:-debug}
 
 .PHONY: test
@@ -85,8 +108,8 @@ lint: ## Run golangci-lint (must be installed separately)
 	golangci-lint run ./...
 
 .PHONY: clean
-clean: ## Remove build artefacts
-	rm -rf $(DIST_DIR)
+clean: ## Remove build artefacts and local database
+	rm -rf $(DIST_DIR) telemetry.db
 
 $(DIST_DIR):
 	mkdir -p $(DIST_DIR)
