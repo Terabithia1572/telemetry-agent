@@ -186,6 +186,39 @@
         </table>
       </div>
     </div>
+
+    <!-- Docker Containers Table -->
+    <div class="mt-6 pt-5 border-t border-surface-border">
+      <div class="flex items-center justify-between mb-3">
+        <h4 class="text-xs text-slate-400 font-semibold uppercase tracking-wider flex items-center gap-2">
+          <svg class="w-4 h-4 text-accent" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M22 12H2"/>
+            <path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/>
+            <line x1="6" y1="16" x2="6.01" y2="16"/>
+            <line x1="10" y1="16" x2="10.01" y2="16"/>
+          </svg>
+          Docker Containers
+        </h4>
+        <span id="modal-container-count" class="text-xs text-slate-500 font-mono"></span>
+      </div>
+
+      <div class="overflow-x-auto rounded-lg border border-surface-border bg-surface">
+        <table class="w-full text-left text-xs border-collapse">
+          <thead>
+            <tr class="border-b border-surface-border text-slate-400 bg-surface-card/60">
+              <th class="py-2.5 px-3 font-medium">Container Name</th>
+              <th class="py-2.5 px-3 font-medium">Image</th>
+              <th class="py-2.5 px-3 font-medium">Status</th>
+              <th class="py-2.5 px-3 font-medium text-right">CPU %</th>
+              <th class="py-2.5 px-3 font-medium text-right">Memory Usage / Limit</th>
+            </tr>
+          </thead>
+          <tbody id="modal-container-table" class="divide-y divide-surface-border/50 text-slate-300">
+            <!-- populated dynamically -->
+          </tbody>
+        </table>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -273,6 +306,7 @@ function renderNodes(nodes) {
     const activeNode = allNodes.find(x => x.node_id === activeNodeId);
     if (activeNode) {
       renderModalProcesses(activeNode);
+      renderModalContainers(activeNode);
     }
   }
 }
@@ -404,8 +438,9 @@ async function openModal(nodeId) {
       <p class="text-sm text-white font-mono truncate">${escHtml(String(v))}</p>
     </div>`).join('');
 
-  // Render active processes table.
+  // Render active processes and containers tables.
   renderModalProcesses(n);
+  renderModalContainers(n);
 
   document.getElementById('modal').classList.remove('hidden');
   document.body.style.overflow = 'hidden';
@@ -474,6 +509,68 @@ function renderModalProcesses(node) {
         <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-mono font-medium border ${memColor}">
           ${memPctVal}%
         </span>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+function renderModalContainers(node) {
+  const tbody = document.getElementById('modal-container-table');
+  const countEl = document.getElementById('modal-container-count');
+  if (!tbody || !node) return;
+
+  const containers = Array.isArray(node.containers) ? node.containers : [];
+  if (countEl) countEl.textContent = `${containers.length} containers`;
+
+  if (containers.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="5" class="py-6 text-center text-slate-500 font-mono">No active Docker containers detected</td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = containers.map(c => {
+    const memUsage = fmtBytes(c.memory_usage || 0);
+    const memLimit = c.memory_limit > 0 ? fmtBytes(c.memory_limit) : 'unlimited';
+    const cpuVal = (c.cpu_percent || 0).toFixed(1);
+
+    let statusClass = 'bg-slate-800/60 text-slate-400 border-slate-700/50';
+    const st = (c.status || '').toLowerCase();
+    if (st === 'running') {
+      statusClass = 'bg-green-950/50 text-ok border-green-800/40';
+    } else if (st === 'paused') {
+      statusClass = 'bg-amber-950/50 text-warn border-amber-800/40';
+    } else if (st === 'exited') {
+      statusClass = 'bg-slate-800/60 text-slate-400 border-slate-700/50';
+    }
+
+    const cpuColor = c.cpu_percent > 50 
+      ? 'text-danger bg-red-950/50 border-danger/40' 
+      : c.cpu_percent > 20 
+      ? 'text-warn bg-amber-950/50 border-warn/40' 
+      : 'text-slate-300 bg-slate-800/60 border-slate-700/50';
+
+    return `
+    <tr class="hover:bg-surface-card/40 transition-colors">
+      <td class="py-2.5 px-3 font-medium text-white max-w-[180px] truncate" title="${escHtml(c.name)}">
+        <div class="flex items-center gap-1.5">
+          <span class="w-1.5 h-1.5 rounded-full ${st === 'running' ? 'bg-ok' : 'bg-slate-500'}"></span>
+          <span>${escHtml(c.name)}</span>
+        </div>
+      </td>
+      <td class="py-2.5 px-3 font-mono text-slate-400 max-w-[200px] truncate" title="${escHtml(c.image)}">
+        ${escHtml(c.image)}
+      </td>
+      <td class="py-2.5 px-3">
+        <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium border ${statusClass}">
+          ${escHtml(c.status || 'unknown')}
+        </span>
+      </td>
+      <td class="py-2.5 px-3 text-right">
+        <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-mono font-medium border ${cpuColor}">
+          ${cpuVal}%
+        </span>
+      </td>
+      <td class="py-2.5 px-3 text-right font-mono text-slate-300">
+        ${memUsage} / ${memLimit}
       </td>
     </tr>`;
   }).join('');

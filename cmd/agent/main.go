@@ -84,6 +84,7 @@ func main() {
 			collector.NewDiskCollector(),
 			collector.NewNetworkCollector(),
 			collector.NewProcessCollector(10),
+			collector.NewDockerCollector(logger),
 		),
 	)
 

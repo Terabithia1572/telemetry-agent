@@ -47,8 +47,9 @@ type NodeRow struct {
 	MemPercent    float64             `json:"mem_percent"`
 	DiskPercent   float64             `json:"disk_percent"`
 	NetRxBytes    uint64              `json:"net_rx_bytes"`
-	NetTxBytes    uint64              `json:"net_tx_bytes"`
-	Processes     []model.ProcessInfo `json:"processes"`
+	NetTxBytes    uint64                `json:"net_tx_bytes"`
+	Processes     []model.ProcessInfo   `json:"processes"`
+	Containers    []model.ContainerInfo `json:"containers"`
 }
 
 // MetricPoint is a single row from metrics_history, returned by history queries.
@@ -101,7 +102,8 @@ func applySchema(db *sql.DB) error {
 			agent_version  TEXT NOT NULL DEFAULT '',
 			status         TEXT NOT NULL DEFAULT 'offline',
 			last_seen      DATETIME NOT NULL DEFAULT (datetime('now')),
-			processes      TEXT NOT NULL DEFAULT '[]'
+			processes      TEXT NOT NULL DEFAULT '[]',
+			containers     TEXT NOT NULL DEFAULT '[]'
 		)`,
 		`CREATE TABLE IF NOT EXISTS metrics_history (
 			id           INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -122,8 +124,9 @@ func applySchema(db *sql.DB) error {
 		}
 	}
 
-	// Ensure processes column exists in case nodes table was created in an earlier migration
+	// Ensure processes and containers columns exist in case nodes table was created in an earlier migration
 	_, _ = db.Exec(`ALTER TABLE nodes ADD COLUMN processes TEXT NOT NULL DEFAULT '[]'`)
+	_, _ = db.Exec(`ALTER TABLE nodes ADD COLUMN containers TEXT NOT NULL DEFAULT '[]'`)
 
 	return nil
 }
@@ -151,9 +154,14 @@ func (s *Store) UpsertNode(ctx context.Context, p IngestParams) error {
 		procsJSON = []byte("[]")
 	}
 
+	containersJSON, err := json.Marshal(p.Containers)
+	if err != nil || len(containersJSON) == 0 {
+		containersJSON = []byte("[]")
+	}
+
 	_, err = tx.ExecContext(ctx, `
-		INSERT INTO nodes (node_id, hostname, os, platform, kernel_version, agent_version, status, last_seen, processes)
-		VALUES (?, ?, ?, ?, ?, ?, 'online', ?, ?)
+		INSERT INTO nodes (node_id, hostname, os, platform, kernel_version, agent_version, status, last_seen, processes, containers)
+		VALUES (?, ?, ?, ?, ?, ?, 'online', ?, ?, ?)
 		ON CONFLICT(node_id) DO UPDATE SET
 			hostname       = excluded.hostname,
 			os             = excluded.os,
@@ -162,8 +170,9 @@ func (s *Store) UpsertNode(ctx context.Context, p IngestParams) error {
 			agent_version  = excluded.agent_version,
 			status         = 'online',
 			last_seen      = excluded.last_seen,
-			processes      = excluded.processes`,
-		p.NodeID, p.Hostname, p.OS, p.Platform, p.KernelVersion, p.AgentVersion, lastSeenStr, string(procsJSON),
+			processes      = excluded.processes,
+			containers     = excluded.containers`,
+		p.NodeID, p.Hostname, p.OS, p.Platform, p.KernelVersion, p.AgentVersion, lastSeenStr, string(procsJSON), string(containersJSON),
 	)
 	if err != nil {
 		return fmt.Errorf("store: upsert node: %w", err)
@@ -190,7 +199,7 @@ func (s *Store) UpsertNode(ctx context.Context, p IngestParams) error {
 	return tx.Commit()
 }
 
-// GetNodes returns all known nodes with their latest metrics and active processes.
+// GetNodes returns all known nodes with their latest metrics, active processes, and containers.
 // A node is considered "offline" when its last_seen is older than offlineAfter.
 func (s *Store) GetNodes(ctx context.Context, offlineAfter time.Duration) ([]NodeRow, error) {
 	rows, err := s.db.QueryContext(ctx, `
@@ -198,6 +207,7 @@ func (s *Store) GetNodes(ctx context.Context, offlineAfter time.Duration) ([]Nod
 			n.node_id, n.hostname, n.os, n.platform, n.kernel_version, n.agent_version,
 			n.last_seen,
 			COALESCE(n.processes, '[]'),
+			COALESCE(n.containers, '[]'),
 			COALESCE(m.cpu_percent,  0),
 			COALESCE(m.mem_percent,  0),
 			COALESCE(m.disk_percent, 0),
@@ -222,10 +232,12 @@ func (s *Store) GetNodes(ctx context.Context, offlineAfter time.Duration) ([]Nod
 		var r NodeRow
 		var lastSeenStr string
 		var procsJSON string
+		var containersJSON string
 		if err := rows.Scan(
 			&r.NodeID, &r.Hostname, &r.OS, &r.Platform, &r.KernelVersion, &r.AgentVersion,
 			&lastSeenStr,
 			&procsJSON,
+			&containersJSON,
 			&r.CPUPercent, &r.MemPercent, &r.DiskPercent, &r.NetRxBytes, &r.NetTxBytes,
 		); err != nil {
 			return nil, fmt.Errorf("store: scan node row: %w", err)
@@ -234,6 +246,9 @@ func (s *Store) GetNodes(ctx context.Context, offlineAfter time.Duration) ([]Nod
 		r.LastSeen = parseSQLiteTime(lastSeenStr)
 		if err := json.Unmarshal([]byte(procsJSON), &r.Processes); err != nil || r.Processes == nil {
 			r.Processes = []model.ProcessInfo{}
+		}
+		if err := json.Unmarshal([]byte(containersJSON), &r.Containers); err != nil || r.Containers == nil {
+			r.Containers = []model.ContainerInfo{}
 		}
 
 		if r.LastSeen.Before(cutoff) {
@@ -253,6 +268,7 @@ func (s *Store) GetNode(ctx context.Context, nodeID string, offlineAfter time.Du
 			n.node_id, n.hostname, n.os, n.platform, n.kernel_version, n.agent_version,
 			n.last_seen,
 			COALESCE(n.processes, '[]'),
+			COALESCE(n.containers, '[]'),
 			COALESCE(m.cpu_percent,  0),
 			COALESCE(m.mem_percent,  0),
 			COALESCE(m.disk_percent, 0),
@@ -270,10 +286,12 @@ func (s *Store) GetNode(ctx context.Context, nodeID string, offlineAfter time.Du
 	var r NodeRow
 	var lastSeenStr string
 	var procsJSON string
+	var containersJSON string
 	if err := row.Scan(
 		&r.NodeID, &r.Hostname, &r.OS, &r.Platform, &r.KernelVersion, &r.AgentVersion,
 		&lastSeenStr,
 		&procsJSON,
+		&containersJSON,
 		&r.CPUPercent, &r.MemPercent, &r.DiskPercent, &r.NetRxBytes, &r.NetTxBytes,
 	); err != nil {
 		if err == sql.ErrNoRows {
@@ -285,6 +303,9 @@ func (s *Store) GetNode(ctx context.Context, nodeID string, offlineAfter time.Du
 	r.LastSeen = parseSQLiteTime(lastSeenStr)
 	if err := json.Unmarshal([]byte(procsJSON), &r.Processes); err != nil || r.Processes == nil {
 		r.Processes = []model.ProcessInfo{}
+	}
+	if err := json.Unmarshal([]byte(containersJSON), &r.Containers); err != nil || r.Containers == nil {
+		r.Containers = []model.ContainerInfo{}
 	}
 
 	cutoff := time.Now().UTC().Add(-offlineAfter)
@@ -345,6 +366,7 @@ type IngestParams struct {
 	NetRxBytes    uint64
 	NetTxBytes    uint64
 	Processes     []model.ProcessInfo
+	Containers    []model.ContainerInfo
 }
 
 // min returns the smaller of a and b (backport for Go <1.21 build compat).

@@ -84,6 +84,7 @@ func (a *API) handleIngest(w http.ResponseWriter, r *http.Request) {
 		"cpu", fmt.Sprintf("%.1f%%", p.CPUPercent),
 		"mem", fmt.Sprintf("%.1f%%", p.MemPercent),
 		"procs", len(p.Processes),
+		"containers", len(p.Containers),
 	)
 
 	// Notify SSE subscribers so the dashboard updates immediately.
@@ -108,9 +109,13 @@ func extractIngestParams(r *model.TelemetryReport) IngestParams {
 		CPUPercent:    r.CPU.UsagePercent,
 		MemPercent:    r.Memory.Physical.UsagePercent,
 		Processes:     r.Processes,
+		Containers:    r.Containers,
 	}
 	if p.Processes == nil {
 		p.Processes = []model.ProcessInfo{}
+	}
+	if p.Containers == nil {
+		p.Containers = []model.ContainerInfo{}
 	}
 
 	// Aggregate disk usage: weighted by total bytes across all mounts.

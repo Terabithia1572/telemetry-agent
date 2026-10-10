@@ -3,6 +3,7 @@ module github.com/telemetry-agent
 go 1.22
 
 require (
+	github.com/Microsoft/go-winio v0.6.2
 	github.com/shirou/gopsutil/v3 v3.23.12
 	modernc.org/sqlite v1.29.9
 )

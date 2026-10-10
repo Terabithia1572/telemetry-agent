@@ -179,6 +179,36 @@ type TelemetryReport struct {
 
 	// Processes holds top resource-consuming processes on the host.
 	Processes []ProcessInfo `json:"processes"`
+
+	// Containers holds active Docker containers running on the host.
+	Containers []ContainerInfo `json:"containers"`
+}
+
+// ContainerInfo describes the runtime metrics and metadata of a Docker container.
+type ContainerInfo struct {
+	// ID is the unique container identifier.
+	ID string `json:"id"`
+
+	// Name is the human-readable container name.
+	Name string `json:"name"`
+
+	// Image is the container image name/tag.
+	Image string `json:"image"`
+
+	// Status is the container operational state (e.g. "running", "paused", "exited").
+	Status string `json:"status"`
+
+	// Created is the Unix timestamp when the container was created.
+	Created int64 `json:"created"`
+
+	// CPUPercent is the percentage of host CPU currently utilized by the container.
+	CPUPercent float64 `json:"cpu_percent"`
+
+	// MemoryUsage is the current memory consumption in bytes.
+	MemoryUsage uint64 `json:"memory_usage"`
+
+	// MemoryLimit is the maximum memory allocated to the container in bytes.
+	MemoryLimit uint64 `json:"memory_limit"`
 }
 
 // ProcessInfo captures resource consumption metrics for a single running process.
