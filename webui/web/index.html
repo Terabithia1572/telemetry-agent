@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" class="dark">
+<html lang="tr" class="dark">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -142,7 +142,7 @@
 
 <body class="min-h-screen text-zinc-100 antialiased selection:bg-brand-500/30 selection:text-white">
 
-<!-- ── World-Class Top Navigation Bar ──────────────────────────────────── -->
+<!-- ── Top Navigation Bar ──────────────────────────────────────────────── -->
 <header class="sticky top-0 z-40 border-b border-zinc-800/80 bg-zinc-950/80 backdrop-blur-xl">
   <div class="max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
     <!-- Brand Title & Status Pill -->
@@ -159,7 +159,7 @@
           <span class="font-bold text-base tracking-tight text-white">Telemetry</span>
           <span class="text-[10px] font-mono font-semibold px-2 py-0.5 rounded-full bg-zinc-800/90 text-brand-300 border border-zinc-700/60 uppercase tracking-widest">Hub</span>
         </div>
-        <p class="text-[11px] text-zinc-500 font-medium hidden sm:block">Fleet Observability &amp; Remediation Platform</p>
+        <p data-i18n="appSubtitle" class="text-[11px] text-zinc-500 font-medium hidden sm:block">Filo Gözlemlenebilirlik &amp; Çözüm Platformu</p>
       </div>
     </div>
 
@@ -168,29 +168,37 @@
       <!-- Cluster Status Pill Group -->
       <div class="hidden md:flex items-center gap-2 bg-zinc-900/90 border border-zinc-800/90 rounded-full px-3.5 py-1.5 shadow-inner">
         <div class="flex items-center gap-1.5">
-          <span class="text-zinc-500 text-[11px] font-medium uppercase tracking-wider">Nodes:</span>
+          <span data-i18n="nodes" class="text-zinc-500 text-[11px] font-medium uppercase tracking-wider">Düğümler:</span>
           <span id="nav-total" class="font-mono font-semibold text-white">—</span>
         </div>
         <span class="text-zinc-700">|</span>
         <div class="flex items-center gap-1.5">
           <span class="w-2 h-2 rounded-full bg-ok pulse-glow-online"></span>
-          <span id="nav-online" class="font-mono font-semibold text-emerald-400">— online</span>
+          <span id="nav-online" class="font-mono font-semibold text-emerald-400">— çevrim içi</span>
         </div>
         <span class="text-zinc-700">|</span>
         <div class="flex items-center gap-1.5">
           <span class="w-1.5 h-1.5 rounded-full bg-zinc-600"></span>
-          <span id="nav-offline" class="font-mono text-zinc-500">— offline</span>
+          <span id="nav-offline" class="font-mono text-zinc-500">— çevrim dışı</span>
         </div>
       </div>
 
       <!-- Live Heartbeat Indicator -->
-      <div class="flex items-center gap-2 px-2.5 py-1.5 rounded-lg border border-zinc-800 bg-zinc-900/60" title="Connected to Server-Sent Events stream">
+      <div class="flex items-center gap-2 px-2.5 py-1.5 rounded-lg border border-zinc-800 bg-zinc-900/60" title="Server-Sent Events bağlantısı aktif">
         <div id="refresh-indicator" class="w-2 h-2 rounded-full bg-emerald-500 transition-colors duration-300"></div>
-        <span class="text-[11px] font-mono text-zinc-400 font-medium hidden lg:inline">LIVE</span>
+        <span data-i18n="live" class="text-[11px] font-mono text-zinc-400 font-medium hidden lg:inline">CANLI</span>
+      </div>
+
+      <!-- Language Switcher Toggle (TR / EN) -->
+      <div class="flex items-center bg-zinc-900 border border-zinc-800 rounded-lg p-0.5 shadow-sm text-[11px] font-mono font-medium">
+        <button type="button" onclick="setLanguage('tr')" id="lang-btn-tr" title="Türkçe"
+          class="px-2 py-1 rounded-md transition-all bg-brand-500/20 text-brand-300 font-bold border border-brand-500/40">TR</button>
+        <button type="button" onclick="setLanguage('en')" id="lang-btn-en" title="English"
+          class="px-2 py-1 rounded-md transition-all text-zinc-400 hover:text-white">EN</button>
       </div>
 
       <!-- Alert Settings Trigger Button -->
-      <button onclick="openAlertModal()" title="Alert Rules & Notifications"
+      <button onclick="openAlertModal()" data-i18n-title="alertTooltip" title="Alarmlar ve Bildirimler"
         class="relative p-2 rounded-lg border border-zinc-800 bg-zinc-900 hover:bg-zinc-800/90 hover:border-zinc-700 text-zinc-400 hover:text-white transition-all shadow-sm group">
         <svg class="w-4 h-4 text-zinc-400 group-hover:text-brand-400 transition-colors" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
@@ -205,61 +213,61 @@
 <!-- ── Main Dashboard Workspace ────────────────────────────────────────── -->
 <main class="max-w-7xl mx-auto px-4 sm:px-6 py-7">
 
-  <!-- SaaS Metric KPI Highlights (TailAdmin / shadcn style) -->
+  <!-- Metric KPI Highlights -->
   <section class="grid grid-cols-2 lg:grid-cols-4 gap-3.5 mb-7">
     <!-- Total Fleet -->
     <div class="bg-zinc-900/50 border border-zinc-800/80 rounded-xl p-4 shadow-sm relative overflow-hidden">
       <div class="flex items-center justify-between mb-2">
-        <span class="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider">Fleet Nodes</span>
+        <span data-i18n="kpiFleetNodes" class="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider">DÜĞÜM SAYISI</span>
         <div class="w-6 h-6 rounded-md bg-brand-500/10 text-brand-400 flex items-center justify-center">
           <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
         </div>
       </div>
       <div class="flex items-baseline gap-2">
         <span id="kpi-total-nodes" class="text-2xl font-bold font-mono text-white">—</span>
-        <span id="kpi-health-rate" class="text-xs font-mono text-emerald-400 font-medium">100% online</span>
+        <span id="kpi-health-rate" class="text-xs font-mono text-emerald-400 font-medium">100% sağlıklı</span>
       </div>
     </div>
 
     <!-- Average CPU -->
     <div class="bg-zinc-900/50 border border-zinc-800/80 rounded-xl p-4 shadow-sm relative overflow-hidden">
       <div class="flex items-center justify-between mb-2">
-        <span class="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider">Cluster CPU Load</span>
+        <span data-i18n="kpiClusterCPU" class="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider">KÜME İŞLEMCİ YÜKÜ</span>
         <div class="w-6 h-6 rounded-md bg-indigo-500/10 text-indigo-400 flex items-center justify-center">
           <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="4" width="16" height="16" rx="2"/><rect x="9" y="9" width="6" height="6"/><line x1="9" y1="1" x2="9" y2="4"/><line x1="15" y1="1" x2="15" y2="4"/><line x1="9" y1="20" x2="9" y2="23"/><line x1="15" y1="20" x2="15" y2="23"/></svg>
         </div>
       </div>
       <div class="flex items-baseline gap-2">
         <span id="kpi-avg-cpu" class="text-2xl font-bold font-mono text-white">—</span>
-        <span class="text-xs font-mono text-zinc-500">fleet average</span>
+        <span data-i18n="kpiFleetAvg" class="text-xs font-mono text-zinc-500">küme ortalaması</span>
       </div>
     </div>
 
     <!-- Average RAM -->
     <div class="bg-zinc-900/50 border border-zinc-800/80 rounded-xl p-4 shadow-sm relative overflow-hidden">
       <div class="flex items-center justify-between mb-2">
-        <span class="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider">Memory Allocation</span>
+        <span data-i18n="kpiMemoryAlloc" class="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider">BELLEK KULLANIMI</span>
         <div class="w-6 h-6 rounded-md bg-cyan-500/10 text-cyan-400 flex items-center justify-center">
           <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 19v-3"/><path d="M10 19v-3"/><path d="M14 19v-3"/><path d="M18 19v-3"/><rect x="2" y="5" width="20" height="10" rx="2"/></svg>
         </div>
       </div>
       <div class="flex items-baseline gap-2">
         <span id="kpi-avg-mem" class="text-2xl font-bold font-mono text-white">—</span>
-        <span class="text-xs font-mono text-zinc-500">utilization</span>
+        <span data-i18n="kpiUtilization" class="text-xs font-mono text-zinc-500">kullanım</span>
       </div>
     </div>
 
     <!-- Active Containers -->
     <div class="bg-zinc-900/50 border border-zinc-800/80 rounded-xl p-4 shadow-sm relative overflow-hidden">
       <div class="flex items-center justify-between mb-2">
-        <span class="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider">Docker Workloads</span>
+        <span data-i18n="kpiDockerWorkloads" class="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider">DOCKER İŞ YÜKLERİ</span>
         <div class="w-6 h-6 rounded-md bg-amber-500/10 text-amber-400 flex items-center justify-center">
           <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12H2"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></svg>
         </div>
       </div>
       <div class="flex items-baseline gap-2">
         <span id="kpi-total-containers" class="text-2xl font-bold font-mono text-white">—</span>
-        <span class="text-xs font-mono text-zinc-500">containers running</span>
+        <span data-i18n="kpiContainersRunning" class="text-xs font-mono text-zinc-500">çalışan konteyner</span>
       </div>
     </div>
   </section>
@@ -270,21 +278,20 @@
       <div class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-zinc-500">
         <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
       </div>
-      <input id="search-input" type="text" placeholder="Search by hostname, OS, platform, or node ID…"
+      <input id="search-input" type="text" data-i18n-placeholder="searchPlaceholder" placeholder="Sunucu adı, işletim sistemi ile ara…"
         class="w-full bg-zinc-900/80 border border-zinc-800 rounded-xl pl-10 pr-4 py-2.5 text-sm text-zinc-100 placeholder-zinc-500 focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 transition-all font-sans" />
     </div>
 
     <div class="flex items-center gap-2.5">
       <!-- Status Filter Segmented Control -->
       <div class="bg-zinc-900/80 border border-zinc-800 rounded-xl p-1 flex items-center">
-        <button type="button" onclick="setStatusFilter('all')" id="filter-btn-all"
-          class="px-3 py-1.5 rounded-lg text-xs font-medium transition-all bg-zinc-800 text-white shadow-sm">All</button>
-        <button type="button" onclick="setStatusFilter('online')" id="filter-btn-online"
-          class="px-3 py-1.5 rounded-lg text-xs font-medium transition-all text-zinc-400 hover:text-white">Online</button>
-        <button type="button" onclick="setStatusFilter('offline')" id="filter-btn-offline"
-          class="px-3 py-1.5 rounded-lg text-xs font-medium transition-all text-zinc-400 hover:text-white">Offline</button>
+        <button type="button" onclick="setStatusFilter('all')" id="filter-btn-all" data-i18n="filterAll"
+          class="px-3 py-1.5 rounded-lg text-xs font-medium transition-all bg-zinc-800 text-white shadow-sm">Tümü</button>
+        <button type="button" onclick="setStatusFilter('online')" id="filter-btn-online" data-i18n="filterOnline"
+          class="px-3 py-1.5 rounded-lg text-xs font-medium transition-all text-zinc-400 hover:text-white">Çevrim içi</button>
+        <button type="button" onclick="setStatusFilter('offline')" id="filter-btn-offline" data-i18n="filterOffline"
+          class="px-3 py-1.5 rounded-lg text-xs font-medium transition-all text-zinc-400 hover:text-white">Çevrim dışı</button>
       </div>
-      <!-- Hidden select to retain backward compatibility with any programmatic checks -->
       <select id="status-filter" class="hidden">
         <option value="all">all</option>
         <option value="online">online</option>
@@ -292,7 +299,7 @@
       </select>
 
       <!-- Refresh Action -->
-      <button onclick="fetchNodes()" title="Force Refresh"
+      <button onclick="fetchNodes()" data-i18n-title="refreshTooltip" title="Yenile"
         class="p-2.5 rounded-xl border border-zinc-800 bg-zinc-900/80 hover:bg-zinc-800 text-zinc-300 hover:text-white transition-all flex items-center gap-2 text-xs font-medium">
         <svg id="refresh-icon" class="w-4 h-4 transition-transform duration-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
@@ -318,8 +325,8 @@
         <rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/>
       </svg>
     </div>
-    <h3 class="text-base font-semibold text-zinc-200">No telemetry nodes found</h3>
-    <p class="text-xs text-zinc-500 mt-1 max-w-sm">No connected agents match the current filter criteria, or no nodes have checked in yet.</p>
+    <h3 data-i18n="emptyTitle" class="text-base font-semibold text-zinc-200">Bağlı telemetri düğümü bulunamadı</h3>
+    <p data-i18n="emptyDesc" class="text-xs text-zinc-500 mt-1 max-w-sm">Filtre kriterlerine uyan veya henüz bağlanmış bir ajan bulunmuyor.</p>
     <div class="mt-5 p-3 rounded-xl bg-zinc-950 border border-zinc-800 text-left font-mono text-xs text-brand-400 select-all">
       ./telemetry-agent --hub-url http://localhost:18080 --interval 5s
     </div>
@@ -346,7 +353,7 @@
           <p id="modal-subtitle-id" class="text-xs text-zinc-500 font-mono mt-0.5 truncate max-w-md"></p>
         </div>
       </div>
-      <button onclick="closeModal()" title="Close (ESC)"
+      <button onclick="closeModal()" title="Kapat (ESC)"
         class="p-1.5 rounded-lg border border-zinc-800 bg-zinc-900/60 hover:bg-zinc-800 text-zinc-400 hover:text-white transition-colors">
         <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
       </button>
@@ -358,18 +365,18 @@
     <!-- Real-time Charts Section -->
     <div class="space-y-4 mb-7">
       <div class="flex items-center justify-between">
-        <h4 class="text-xs font-semibold uppercase tracking-wider text-zinc-400 flex items-center gap-2">
+        <h4 data-i18n="resourceHistoryTitle" class="text-xs font-semibold uppercase tracking-wider text-zinc-400 flex items-center gap-2">
           <svg class="w-3.5 h-3.5 text-brand-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
-          Resource Utilization History (Last 1 Hour)
+          Kaynak Kullanım Geçmişi (Son 1 Saat)
         </h4>
-        <span class="text-[11px] font-mono text-zinc-500">Auto-refresh 5s</span>
+        <span data-i18n="autoRefresh" class="text-[11px] font-mono text-zinc-500">Otomatik yenileme 5sn</span>
       </div>
 
       <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
         <!-- CPU Chart -->
         <div class="bg-zinc-950/60 border border-zinc-800/80 rounded-xl p-3.5">
           <div class="flex items-center justify-between mb-2 text-xs">
-            <span class="font-medium text-zinc-400">CPU Usage</span>
+            <span data-i18n="cpuUsage" class="font-medium text-zinc-400">İşlemci Kullanımı</span>
             <span id="modal-cur-cpu" class="font-mono text-brand-400 font-semibold">—</span>
           </div>
           <canvas id="chart-cpu"></canvas>
@@ -378,7 +385,7 @@
         <!-- RAM Chart -->
         <div class="bg-zinc-950/60 border border-zinc-800/80 rounded-xl p-3.5">
           <div class="flex items-center justify-between mb-2 text-xs">
-            <span class="font-medium text-zinc-400">RAM Usage</span>
+            <span data-i18n="ramUsage" class="font-medium text-zinc-400">Bellek Kullanımı</span>
             <span id="modal-cur-mem" class="font-mono text-sky-400 font-semibold">—</span>
           </div>
           <canvas id="chart-mem"></canvas>
@@ -387,7 +394,7 @@
         <!-- Disk Chart -->
         <div class="bg-zinc-950/60 border border-zinc-800/80 rounded-xl p-3.5">
           <div class="flex items-center justify-between mb-2 text-xs">
-            <span class="font-medium text-zinc-400">Disk Usage</span>
+            <span data-i18n="diskUsage" class="font-medium text-zinc-400">Disk Kullanımı</span>
             <span id="modal-cur-disk" class="font-mono text-amber-400 font-semibold">—</span>
           </div>
           <canvas id="chart-disk"></canvas>
@@ -398,11 +405,11 @@
     <!-- Top Processes Table -->
     <div class="mb-7">
       <div class="flex items-center justify-between mb-3">
-        <h4 class="text-xs font-semibold uppercase tracking-wider text-zinc-400 flex items-center gap-2">
+        <h4 data-i18n="topProcessesTitle" class="text-xs font-semibold uppercase tracking-wider text-zinc-400 flex items-center gap-2">
           <svg class="w-3.5 h-3.5 text-brand-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <rect x="4" y="4" width="16" height="16" rx="2"/><rect x="9" y="9" width="6" height="6"/>
           </svg>
-          Top Resource-Consuming Processes
+          En Çok Kaynak Tüketen Süreçler
         </h4>
         <span id="modal-proc-count" class="text-xs text-zinc-500 font-mono"></span>
       </div>
@@ -411,11 +418,11 @@
         <table class="w-full text-left text-xs border-collapse">
           <thead>
             <tr class="border-b border-zinc-800 text-zinc-400 bg-zinc-900/60 font-medium">
-              <th class="py-2.5 px-3.5">PID</th>
-              <th class="py-2.5 px-3.5">Process Name</th>
-              <th class="py-2.5 px-3.5 text-right">CPU %</th>
-              <th class="py-2.5 px-3.5 text-right">RSS (MB)</th>
-              <th class="py-2.5 px-3.5 text-right">Memory %</th>
+              <th class="py-2.5 px-3.5" data-i18n="thPid">PID</th>
+              <th class="py-2.5 px-3.5" data-i18n="thProcessName">Süreç Adı</th>
+              <th class="py-2.5 px-3.5 text-right" data-i18n="thCpu">İşlemci %</th>
+              <th class="py-2.5 px-3.5 text-right" data-i18n="thRss">Bellek (MB)</th>
+              <th class="py-2.5 px-3.5 text-right" data-i18n="thMemPct">Bellek %</th>
             </tr>
           </thead>
           <tbody id="modal-proc-table" class="divide-y divide-zinc-800/40 text-zinc-300 font-mono"></tbody>
@@ -426,11 +433,11 @@
     <!-- Docker Containers Table -->
     <div class="mb-7">
       <div class="flex items-center justify-between mb-3">
-        <h4 class="text-xs font-semibold uppercase tracking-wider text-zinc-400 flex items-center gap-2">
+        <h4 data-i18n="dockerTitle" class="text-xs font-semibold uppercase tracking-wider text-zinc-400 flex items-center gap-2">
           <svg class="w-3.5 h-3.5 text-brand-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M22 12H2"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/>
           </svg>
-          Docker Containers Telemetry
+          Docker Konteynerleri
         </h4>
         <span id="modal-container-count" class="text-xs text-zinc-500 font-mono"></span>
       </div>
@@ -439,12 +446,12 @@
         <table class="w-full text-left text-xs border-collapse">
           <thead>
             <tr class="border-b border-zinc-800 text-zinc-400 bg-zinc-900/60 font-medium">
-              <th class="py-2.5 px-3.5">Container</th>
-              <th class="py-2.5 px-3.5">Image Tag</th>
-              <th class="py-2.5 px-3.5">Status</th>
-              <th class="py-2.5 px-3.5 text-right">CPU %</th>
-              <th class="py-2.5 px-3.5 text-right">Memory</th>
-              <th class="py-2.5 px-3.5 text-right">Action</th>
+              <th class="py-2.5 px-3.5" data-i18n="thContainer">Konteyner</th>
+              <th class="py-2.5 px-3.5" data-i18n="thImageTag">İmaj Etiketi</th>
+              <th class="py-2.5 px-3.5" data-i18n="thStatus">Durum</th>
+              <th class="py-2.5 px-3.5 text-right" data-i18n="thCpu">İşlemci %</th>
+              <th class="py-2.5 px-3.5 text-right" data-i18n="thMemory">Bellek</th>
+              <th class="py-2.5 px-3.5 text-right" data-i18n="thAction">İşlem</th>
             </tr>
           </thead>
           <tbody id="modal-container-table" class="divide-y divide-zinc-800/40 text-zinc-300"></tbody>
@@ -455,13 +462,13 @@
     <!-- ── Quick Diagnostic & Remediation Actions ──────────────────────── -->
     <div class="pt-5 border-t border-zinc-800/90">
       <div class="flex items-center justify-between mb-3">
-        <h4 class="text-xs font-semibold uppercase tracking-wider text-zinc-400 flex items-center gap-2">
+        <h4 data-i18n="quickActionsTitle" class="text-xs font-semibold uppercase tracking-wider text-zinc-400 flex items-center gap-2">
           <svg class="w-3.5 h-3.5 text-brand-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
           </svg>
-          Quick Diagnostic &amp; Remediation Toolbox
+          Hızlı Tanı ve Çözüm Araçları
         </h4>
-        <span class="text-[10px] font-mono px-2 py-0.5 rounded bg-zinc-800 text-zinc-400 uppercase tracking-widest border border-zinc-700/50">Whitelisted</span>
+        <span data-i18n="whitelistedBadge" class="text-[10px] font-mono px-2 py-0.5 rounded bg-zinc-800 text-zinc-400 uppercase tracking-widest border border-zinc-700/50">Güvenli Liste</span>
       </div>
 
       <!-- Action Trigger Buttons -->
@@ -472,8 +479,8 @@
           <div class="flex items-center gap-3">
             <div class="w-8 h-8 rounded-lg bg-amber-500/10 text-amber-400 flex items-center justify-center text-sm">⚡</div>
             <div>
-              <span class="block text-xs font-semibold text-zinc-200 group-hover:text-brand-300">Flush DNS</span>
-              <span class="block text-[10px] text-zinc-500 font-mono">Clear OS DNS cache</span>
+              <span data-i18n="flushDnsTitle" class="block text-xs font-semibold text-zinc-200 group-hover:text-brand-300">DNS Önbelleğini Temizle</span>
+              <span data-i18n="flushDnsDesc" class="block text-[10px] text-zinc-500 font-mono">İşletim sistemi DNS önbelleğini boşalt</span>
             </div>
           </div>
           <span class="spinner hidden w-4 h-4 border-2 border-brand-400 border-t-transparent rounded-full animate-spin"></span>
@@ -485,8 +492,8 @@
           <div class="flex items-center gap-3">
             <div class="w-8 h-8 rounded-lg bg-emerald-500/10 text-emerald-400 flex items-center justify-center text-sm">🧹</div>
             <div>
-              <span class="block text-xs font-semibold text-zinc-200 group-hover:text-brand-300">Clean Temp</span>
-              <span class="block text-[10px] text-zinc-500 font-mono">Purge junk temp files</span>
+              <span data-i18n="cleanTempTitle" class="block text-xs font-semibold text-zinc-200 group-hover:text-brand-300">Geçici Dosyaları Temizle</span>
+              <span data-i18n="cleanTempDesc" class="block text-[10px] text-zinc-500 font-mono">Gereksiz geçici dosyaları sil</span>
             </div>
           </div>
           <span class="spinner hidden w-4 h-4 border-2 border-brand-400 border-t-transparent rounded-full animate-spin"></span>
@@ -498,8 +505,8 @@
           <div class="flex items-center gap-3">
             <div class="w-8 h-8 rounded-lg bg-sky-500/10 text-sky-400 flex items-center justify-center text-sm">🌐</div>
             <div>
-              <span class="block text-xs font-semibold text-zinc-200 group-hover:text-brand-300">Ping Diagnostic</span>
-              <span class="block text-[10px] text-zinc-500 font-mono">4-packet ping 1.1.1.1</span>
+              <span data-i18n="pingGatewayTitle" class="block text-xs font-semibold text-zinc-200 group-hover:text-brand-300">Ağ Geçidine Ping At</span>
+              <span data-i18n="pingGatewayDesc" class="block text-[10px] text-zinc-500 font-mono">1.1.1.1 adresine 4 paketlik test</span>
             </div>
           </div>
           <span class="spinner hidden w-4 h-4 border-2 border-brand-400 border-t-transparent rounded-full animate-spin"></span>
@@ -515,24 +522,24 @@
             <span class="w-2.5 h-2.5 rounded-full bg-amber-500/80 inline-block"></span>
             <span class="w-2.5 h-2.5 rounded-full bg-emerald-500/80 inline-block"></span>
             <span class="text-[11px] font-mono text-zinc-400 ml-2 flex items-center gap-1.5">
-              <span>console:</span>
+              <span data-i18n="consoleTitle">konsol:</span>
               <span id="console-action-name" class="text-brand-400 font-semibold font-mono"></span>
             </span>
           </div>
           <div class="flex items-center gap-2 font-mono">
             <span id="console-status-badge" class="hidden text-[10px] font-medium px-2 py-0.5 rounded border"></span>
             <span id="console-duration-badge" class="hidden text-[10px] text-zinc-500"></span>
-            <button onclick="clearActionConsole()" class="text-zinc-500 hover:text-zinc-300 transition-colors text-[11px] px-1.5 py-0.5 rounded hover:bg-zinc-800">Clear</button>
+            <button onclick="clearActionConsole()" data-i18n="consoleClear" class="text-zinc-500 hover:text-zinc-300 transition-colors text-[11px] px-1.5 py-0.5 rounded hover:bg-zinc-800">Temizle</button>
           </div>
         </div>
         <!-- Console Output Area -->
-        <pre id="action-console-output" class="p-4 font-mono text-xs text-zinc-300 leading-relaxed overflow-x-auto max-h-56 overflow-y-auto whitespace-pre-wrap selection:bg-brand-500/40">Ready. Select an action above to trigger remote execution.</pre>
+        <pre id="action-console-output" class="p-4 font-mono text-xs text-zinc-300 leading-relaxed overflow-x-auto max-h-56 overflow-y-auto whitespace-pre-wrap selection:bg-brand-500/40">Hazır. Uzaktan çalıştırmak için yukarıdan bir aksiyon seçin.</pre>
       </div>
     </div>
   </div>
 </div>
 
-<!-- ── Modern Alerting & Webhooks Modal (shadcn style) ──────────────────── -->
+<!-- ── Modern Alerting & Webhooks Modal ────────────────────────────────── -->
 <div id="alert-modal" class="modal-backdrop hidden" onclick="closeAlertModal(event)">
   <div class="modal-container p-6 sm:p-7 max-w-lg animate-slide-up" onclick="event.stopPropagation()">
     <div class="flex items-start justify-between pb-4 border-b border-zinc-800 mb-5">
@@ -543,8 +550,8 @@
           </svg>
         </div>
         <div>
-          <h2 class="text-base font-bold text-white tracking-tight">Alerts &amp; Webhook Rules</h2>
-          <p class="text-xs text-zinc-500">Automated incident notifications for Discord &amp; Slack.</p>
+          <h2 data-i18n="alertModalTitle" class="text-base font-bold text-white tracking-tight">Alarmlar ve Webhook Kuralları</h2>
+          <p data-i18n="alertModalSubtitle" class="text-xs text-zinc-500">Discord ve Slack için otomatik olay bildirimleri.</p>
         </div>
       </div>
       <button onclick="closeAlertModal()" class="text-zinc-500 hover:text-white transition-colors p-1">
@@ -553,11 +560,11 @@
     </div>
 
     <form id="alert-form" onsubmit="saveAlertSettings(event)" class="space-y-4">
-      <!-- Enable Toggle Switch (shadcn style) -->
+      <!-- Enable Toggle Switch -->
       <div class="flex items-center justify-between p-3.5 rounded-xl border border-zinc-800 bg-zinc-950/60">
         <div>
-          <label class="text-xs font-semibold text-zinc-200 block">Enable Incident Alerting</label>
-          <span class="text-[11px] text-zinc-500">Evaluate node thresholds on each telemetry ingest</span>
+          <label data-i18n="enableAlertingTitle" class="text-xs font-semibold text-zinc-200 block">Olay Alarmlarını Etkinleştir</label>
+          <span data-i18n="enableAlertingDesc" class="text-[11px] text-zinc-500">Her telemetri verisinde eşikleri kontrol et</span>
         </div>
         <label class="relative inline-flex items-center cursor-pointer">
           <input type="checkbox" id="alert-enabled" class="sr-only peer" />
@@ -567,7 +574,7 @@
 
       <!-- Webhook Destination Input -->
       <div>
-        <label class="block text-xs font-semibold text-zinc-400 mb-1.5 uppercase tracking-wider">Webhook URL (Discord / Slack)</label>
+        <label data-i18n="webhookUrlLabel" class="block text-xs font-semibold text-zinc-400 mb-1.5 uppercase tracking-wider">Webhook Adresi (Discord / Slack)</label>
         <div class="relative">
           <input id="alert-webhook-url" type="url" placeholder="https://discord.com/api/webhooks/..."
             class="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3.5 py-2.5 text-xs font-mono text-zinc-200 placeholder-zinc-600 focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 transition-all" />
@@ -579,7 +586,7 @@
         <!-- CPU Threshold -->
         <div class="p-3 rounded-xl border border-zinc-800 bg-zinc-950/60">
           <div class="flex justify-between items-center mb-1">
-            <label class="text-[11px] font-semibold text-zinc-400">CPU Alert</label>
+            <label data-i18n="cpuAlertLabel" class="text-[11px] font-semibold text-zinc-400">İşlemci Alarmı</label>
             <span class="text-[11px] font-mono text-brand-400 font-bold" id="label-cpu-thresh">90%</span>
           </div>
           <input id="alert-cpu-thresh" type="number" min="1" max="100" value="90" oninput="document.getElementById('label-cpu-thresh').textContent = this.value + '%'"
@@ -589,7 +596,7 @@
         <!-- Memory Threshold -->
         <div class="p-3 rounded-xl border border-zinc-800 bg-zinc-950/60">
           <div class="flex justify-between items-center mb-1">
-            <label class="text-[11px] font-semibold text-zinc-400">RAM Alert</label>
+            <label data-i18n="ramAlertLabel" class="text-[11px] font-semibold text-zinc-400">Bellek Alarmı</label>
             <span class="text-[11px] font-mono text-sky-400 font-bold" id="label-mem-thresh">90%</span>
           </div>
           <input id="alert-mem-thresh" type="number" min="1" max="100" value="90" oninput="document.getElementById('label-mem-thresh').textContent = this.value + '%'"
@@ -599,7 +606,7 @@
         <!-- Disk Threshold -->
         <div class="p-3 rounded-xl border border-zinc-800 bg-zinc-950/60">
           <div class="flex justify-between items-center mb-1">
-            <label class="text-[11px] font-semibold text-zinc-400">Disk Alert</label>
+            <label data-i18n="diskAlertLabel" class="text-[11px] font-semibold text-zinc-400">Disk Alarmı</label>
             <span class="text-[11px] font-mono text-amber-400 font-bold" id="label-disk-thresh">90%</span>
           </div>
           <input id="alert-disk-thresh" type="number" min="1" max="100" value="90" oninput="document.getElementById('label-disk-thresh').textContent = this.value + '%'"
@@ -609,28 +616,342 @@
 
       <!-- Action Buttons -->
       <div class="flex items-center justify-between pt-4 border-t border-zinc-800 mt-5">
-        <button type="button" onclick="testAlertNotification()" id="btn-test-alert"
+        <button type="button" onclick="testAlertNotification()" id="btn-test-alert" data-i18n="sendTestNotification"
           class="px-3.5 py-2 rounded-xl border border-zinc-800 bg-zinc-900 hover:bg-zinc-800 hover:border-zinc-700 text-xs font-medium text-zinc-300 transition-all flex items-center gap-2">
           <svg class="w-3.5 h-3.5 text-brand-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
-          Send Test Notification
+          Test Bildirimi Gönder
         </button>
 
         <div class="flex items-center gap-2">
-          <button type="button" onclick="closeAlertModal()"
-            class="px-3.5 py-2 rounded-xl text-xs font-medium text-zinc-400 hover:text-white transition-colors">Cancel</button>
-          <button type="submit" id="btn-save-alert"
-            class="px-4 py-2 rounded-xl bg-brand-500 hover:bg-brand-600 text-white text-xs font-semibold shadow-glow transition-all">Save Settings</button>
+          <button type="button" onclick="closeAlertModal()" data-i18n="btnCancel"
+            class="px-3.5 py-2 rounded-xl text-xs font-medium text-zinc-400 hover:text-white transition-colors">İptal</button>
+          <button type="submit" id="btn-save-alert" data-i18n="btnSaveSettings"
+            class="px-4 py-2 rounded-xl bg-brand-500 hover:bg-brand-600 text-white text-xs font-semibold shadow-glow transition-all">Ayarları Kaydet</button>
         </div>
       </div>
     </form>
   </div>
 </div>
 
-<!-- ── Floating Toast Notifications (Sonner / shadcn style) ───────────── -->
+<!-- ── Floating Toast Notifications Container ─────────────────────────── -->
 <div id="toast-container" class="fixed bottom-5 right-5 flex flex-col gap-2 z-50 pointer-events-none"></div>
 
-<!-- ── Client Application Logic ─────────────────────────────────────────── -->
+<!-- ── Client Application Logic (with Full i18n TR/EN Support) ──────────── -->
 <script>
+/* ================================================================
+   Internationalization (i18n) Dictionaries
+   ================================================================ */
+const translations = {
+  tr: {
+    // Header & Navigation
+    appSubtitle: "Filo Gözlemlenebilirlik & Çözüm Platformu",
+    nodes: "Düğümler:",
+    online: "çevrim içi",
+    offline: "çevrim dışı",
+    live: "CANLI",
+    alertTooltip: "Alarm Kuralları ve Bildirimler",
+
+    // KPI Highlights
+    kpiFleetNodes: "DÜĞÜM SAYISI",
+    kpiHealthy: "sağlıklı",
+    kpiClusterCPU: "KÜME İŞLEMCİ YÜKÜ",
+    kpiFleetAvg: "küme ortalaması",
+    kpiMemoryAlloc: "BELLEK KULLANIMI",
+    kpiUtilization: "kullanım",
+    kpiDockerWorkloads: "DOCKER İŞ YÜKLERİ",
+    kpiContainersRunning: "çalışan konteyner",
+
+    // Search & Filter
+    searchPlaceholder: "Sunucu adı, işletim sistemi ile ara…",
+    filterAll: "Tümü",
+    filterOnline: "Çevrim içi",
+    filterOffline: "Çevrim dışı",
+    refreshTooltip: "Yenile",
+
+    // Empty state
+    emptyTitle: "Bağlı telemetri düğümü bulunamadı",
+    emptyDesc: "Filtre kriterlerine uyan veya henüz bağlanmış bir telemetri ajanı bulunmuyor.",
+
+    // Resource labels
+    cpu: "İşlemci",
+    ram: "Bellek",
+    disk: "Disk",
+
+    // Relative time
+    justNow: "az önce",
+    sAgo: "sn önce",
+    mAgo: "dk önce",
+    hAgo: "sa önce",
+
+    // Node Detail Modal
+    operatingSystem: "İşletim Sistemi",
+    kernelVersion: "Çekirdek Sürümü",
+    agentVersion: "Ajan Sürümü",
+    statusState: "Durum",
+    containers: "Konteynerler",
+    lastContact: "Son Görülme",
+    resourceHistoryTitle: "Kaynak Kullanım Geçmişi (Son 1 Saat)",
+    autoRefresh: "Otomatik yenileme 5sn",
+    cpuUsage: "İşlemci Kullanımı",
+    ramUsage: "Bellek Kullanımı",
+    diskUsage: "Disk Kullanımı",
+
+    // Top Processes
+    topProcessesTitle: "En Çok Kaynak Tüketen Süreçler",
+    sampled: "örneklenen",
+    noProcessData: "Aktif süreç verisi bulunamadı",
+    thPid: "PID",
+    thProcessName: "Süreç Adı",
+    thCpu: "İşlemci %",
+    thRss: "Bellek (MB)",
+    thMemPct: "Bellek %",
+
+    // Docker Containers
+    dockerTitle: "Docker Konteynerleri",
+    noDockerContainers: "Aktif Docker konteyneri bulunamadı",
+    thContainer: "Konteyner",
+    thImageTag: "İmaj Etiketi",
+    thStatus: "Durum",
+    thMemory: "Bellek",
+    thAction: "İşlem",
+    btnRestart: "Yeniden Başlat",
+
+    // Quick Actions Toolbox
+    quickActionsTitle: "Hızlı Tanı ve Çözüm Araçları",
+    whitelistedBadge: "Güvenli Liste",
+    flushDnsTitle: "DNS Önbelleğini Temizle",
+    flushDnsDesc: "İşletim sistemi DNS önbelleğini boşalt",
+    cleanTempTitle: "Geçici Dosyaları Temizle",
+    cleanTempDesc: "Gereksiz geçici dosyaları sil",
+    pingGatewayTitle: "Ağ Geçidine Ping At",
+    pingGatewayDesc: "1.1.1.1 adresine 4 paketlik test",
+    consoleTitle: "konsol:",
+    consoleClear: "Temizle",
+    consoleReady: "Hazır. Uzaktan çalıştırmak için yukarıdan bir aksiyon seçin.",
+    enqueuingAction: "Aksiyon kuyruğa alınıyor",
+    waitingAgentAck: "Ajan onayı bekleniyor...",
+    actionEnqueued: "Aksiyon kuyruğa alındı",
+    pollingResult: "Çalıştırma sonucu bekleniyor...",
+    noStdoutOutput: "(Çıktı olmadan başarıyla tamamlandı)",
+    stderrHeader: "[HATA ÇIKTISI]:",
+    actionFailed: "Aksiyon başarısız oldu.",
+    actionTimedOut: "Aksiyon 15 saniye içinde zaman aşımına uğradı. Ajanın çevrim içi olduğundan emin olun.",
+
+    // Alert Modal
+    alertModalTitle: "Alarmlar ve Webhook Kuralları",
+    alertModalSubtitle: "Discord ve Slack için otomatik olay bildirimleri.",
+    enableAlertingTitle: "Olay Alarmlarını Etkinleştir",
+    enableAlertingDesc: "Her telemetri verisinde eşikleri kontrol et",
+    webhookUrlLabel: "Webhook Adresi (Discord / Slack)",
+    cpuAlertLabel: "İşlemci Alarmı",
+    ramAlertLabel: "Bellek Alarmı",
+    diskAlertLabel: "Disk Alarmı",
+    sendTestNotification: "Test Bildirimi Gönder",
+    btnCancel: "İptal",
+    btnSaveSettings: "Ayarları Kaydet",
+
+    // Toasts
+    toastNoNodeSelected: "Hiçbir düğüm seçilmedi",
+    toastActionCompleted: "aksiyonu başarıyla tamamlandı",
+    toastActionFailed: "aksiyonu başarısız oldu",
+    toastActionTimedOut: "aksiyonu zaman aşımına uğradı",
+    toastFailedToTrigger: "Aksiyon tetiklenemedi:",
+    toastAlertSaved: "Alarm ayarları başarıyla kaydedildi",
+    toastAlertSaveFailed: "Alarm ayarları kaydedilemedi:",
+    toastEnterWebhookFirst: "Lütfen önce bir Webhook adresi girin",
+    toastTestSent: "Test bildirimi başarıyla gönderildi!",
+    toastTestFailed: "Webhook testi başarısız:",
+    toastNetworkError: "Ağ hatası:",
+    toastCouldNotReachHub: "Sunucuya ulaşılamadı:",
+  },
+  en: {
+    // Header & Navigation
+    appSubtitle: "Fleet Observability & Remediation Platform",
+    nodes: "Nodes:",
+    online: "online",
+    offline: "offline",
+    live: "LIVE",
+    alertTooltip: "Alert Rules & Notifications",
+
+    // KPI Highlights
+    kpiFleetNodes: "FLEET NODES",
+    kpiHealthy: "healthy",
+    kpiClusterCPU: "CLUSTER CPU LOAD",
+    kpiFleetAvg: "fleet average",
+    kpiMemoryAlloc: "MEMORY ALLOCATION",
+    kpiUtilization: "utilization",
+    kpiDockerWorkloads: "DOCKER WORKLOADS",
+    kpiContainersRunning: "containers running",
+
+    // Search & Filter
+    searchPlaceholder: "Search by hostname, OS, platform, or node ID…",
+    filterAll: "All",
+    filterOnline: "Online",
+    filterOffline: "Offline",
+    refreshTooltip: "Force Refresh",
+
+    // Empty state
+    emptyTitle: "No telemetry nodes found",
+    emptyDesc: "No connected agents match the current filter criteria, or no nodes have checked in yet.",
+
+    // Resource labels
+    cpu: "CPU",
+    ram: "RAM",
+    disk: "Disk",
+
+    // Relative time
+    justNow: "just now",
+    sAgo: "s ago",
+    mAgo: "m ago",
+    hAgo: "h ago",
+
+    // Node Detail Modal
+    operatingSystem: "Operating System",
+    kernelVersion: "Kernel Version",
+    agentVersion: "Agent Version",
+    statusState: "Status State",
+    containers: "Containers",
+    lastContact: "Last Contact",
+    resourceHistoryTitle: "Resource Utilization History (Last 1 Hour)",
+    autoRefresh: "Auto-refresh 5s",
+    cpuUsage: "CPU Usage",
+    ramUsage: "RAM Usage",
+    diskUsage: "Disk Usage",
+
+    // Top Processes
+    topProcessesTitle: "Top Resource-Consuming Processes",
+    sampled: "sampled",
+    noProcessData: "No active process data available",
+    thPid: "PID",
+    thProcessName: "Process Name",
+    thCpu: "CPU %",
+    thRss: "RSS (MB)",
+    thMemPct: "Memory %",
+
+    // Docker Containers
+    dockerTitle: "Docker Containers Telemetry",
+    noDockerContainers: "No active Docker containers detected",
+    thContainer: "Container",
+    thImageTag: "Image Tag",
+    thStatus: "Status",
+    thMemory: "Memory",
+    thAction: "Action",
+    btnRestart: "Restart",
+
+    // Quick Actions Toolbox
+    quickActionsTitle: "Quick Diagnostic & Remediation Toolbox",
+    whitelistedBadge: "Whitelisted",
+    flushDnsTitle: "Flush DNS",
+    flushDnsDesc: "Clear OS DNS cache",
+    cleanTempTitle: "Clean Temp",
+    cleanTempDesc: "Purge junk temp files",
+    pingGatewayTitle: "Ping Diagnostic",
+    pingGatewayDesc: "4-packet ping 1.1.1.1",
+    consoleTitle: "console:",
+    consoleClear: "Clear",
+    consoleReady: "Ready. Select an action above to trigger remote execution.",
+    enqueuingAction: "Enqueuing action",
+    waitingAgentAck: "Waiting for agent acknowledgment...",
+    actionEnqueued: "Action enqueued",
+    pollingResult: "Polling for execution result...",
+    noStdoutOutput: "(Completed successfully with no output)",
+    stderrHeader: "[STDERR]:",
+    actionFailed: "Action failed.",
+    actionTimedOut: "Action timed out after 15 seconds. Ensure agent is online.",
+
+    // Alert Modal
+    alertModalTitle: "Alerts & Webhook Rules",
+    alertModalSubtitle: "Automated incident notifications for Discord & Slack.",
+    enableAlertingTitle: "Enable Incident Alerting",
+    enableAlertingDesc: "Evaluate node thresholds on each telemetry ingest",
+    webhookUrlLabel: "Webhook URL (Discord / Slack)",
+    cpuAlertLabel: "CPU Alert",
+    ramAlertLabel: "RAM Alert",
+    diskAlertLabel: "Disk Alert",
+    sendTestNotification: "Send Test Notification",
+    btnCancel: "Cancel",
+    btnSaveSettings: "Save Settings",
+
+    // Toasts
+    toastNoNodeSelected: "No node selected",
+    toastActionCompleted: "action completed",
+    toastActionFailed: "action failed",
+    toastActionTimedOut: "action timed out",
+    toastFailedToTrigger: "Failed to trigger action:",
+    toastAlertSaved: "Alert settings saved successfully",
+    toastAlertSaveFailed: "Failed to save alert settings:",
+    toastEnterWebhookFirst: "Please enter a Webhook URL first",
+    toastTestSent: "Test notification sent successfully!",
+    toastTestFailed: "Webhook test failed:",
+    toastNetworkError: "Network error:",
+    toastCouldNotReachHub: "Could not reach hub:",
+  }
+};
+
+let currentLang = localStorage.getItem('telemetry_lang') || 'tr';
+
+function t(key, fallback = '') {
+  const dict = translations[currentLang] || translations.tr;
+  return dict[key] !== undefined ? dict[key] : (fallback || key);
+}
+
+function setLanguage(lang) {
+  if (lang !== 'tr' && lang !== 'en') lang = 'tr';
+  currentLang = lang;
+  localStorage.setItem('telemetry_lang', lang);
+  document.documentElement.lang = lang;
+
+  // Update switcher button styles
+  const btnTr = document.getElementById('lang-btn-tr');
+  const btnEn = document.getElementById('lang-btn-en');
+  if (btnTr && btnEn) {
+    if (lang === 'tr') {
+      btnTr.className = 'px-2 py-1 rounded-md transition-all bg-brand-500/20 text-brand-300 font-bold border border-brand-500/40';
+      btnEn.className = 'px-2 py-1 rounded-md transition-all text-zinc-400 hover:text-white';
+    } else {
+      btnEn.className = 'px-2 py-1 rounded-md transition-all bg-brand-500/20 text-brand-300 font-bold border border-brand-500/40';
+      btnTr.className = 'px-2 py-1 rounded-md transition-all text-zinc-400 hover:text-white';
+    }
+  }
+
+  // Update static DOM elements with data-i18n
+  document.querySelectorAll('[data-i18n]').forEach(el => {
+    const key = el.getAttribute('data-i18n');
+    if (key && translations[currentLang] && translations[currentLang][key] !== undefined) {
+      el.textContent = translations[currentLang][key];
+    }
+  });
+
+  // Update placeholders
+  document.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
+    const key = el.getAttribute('data-i18n-placeholder');
+    if (key && translations[currentLang] && translations[currentLang][key] !== undefined) {
+      el.setAttribute('placeholder', translations[currentLang][key]);
+    }
+  });
+
+  // Update titles
+  document.querySelectorAll('[data-i18n-title]').forEach(el => {
+    const key = el.getAttribute('data-i18n-title');
+    if (key && translations[currentLang] && translations[currentLang][key] !== undefined) {
+      el.setAttribute('title', translations[currentLang][key]);
+    }
+  });
+
+  // Refresh dynamic contents
+  applyFilters();
+  updateClusterKPIs();
+  if (activeNodeId) {
+    const node = allNodes.find(x => x.node_id === activeNodeId);
+    if (node) {
+      updateModalStaticContent(node);
+      renderModalProcesses(node);
+      renderModalContainers(node);
+      updateModalLiveBadges(node);
+    }
+  }
+}
+
 /* ================================================================
    Application State
    ================================================================ */
@@ -708,7 +1029,7 @@ async function fetchNodes() {
     flashIndicator('#10b981');
   } catch (e) {
     flashIndicator('#f43f5e');
-    toast('Could not reach hub: ' + e.message, 'error');
+    toast(t('toastCouldNotReachHub') + ' ' + e.message, 'error');
   } finally {
     if (icon) setTimeout(() => icon.classList.remove('rotate-180'), 500);
   }
@@ -723,7 +1044,6 @@ function renderNodes(nodes) {
   updateClusterKPIs();
   document.getElementById('skeleton-grid').classList.add('hidden');
 
-  // If node detail modal is open, re-render its tables live
   if (activeNodeId) {
     const activeNode = allNodes.find(x => x.node_id === activeNodeId);
     if (activeNode) {
@@ -741,13 +1061,13 @@ function updateClusterKPIs() {
 
   // Header Nav counters
   document.getElementById('nav-total').textContent = total;
-  document.getElementById('nav-online').textContent = `${online} online`;
-  document.getElementById('nav-offline').textContent = `${offline} offline`;
+  document.getElementById('nav-online').textContent = `${online} ${t('online')}`;
+  document.getElementById('nav-offline').textContent = `${offline} ${t('offline')}`;
 
   // Top Metric Cards
   document.getElementById('kpi-total-nodes').textContent = total;
   const healthRate = total > 0 ? Math.round((online / total) * 100) : 100;
-  document.getElementById('kpi-health-rate').textContent = `${healthRate}% healthy`;
+  document.getElementById('kpi-health-rate').textContent = `${healthRate}% ${t('kpiHealthy')}`;
 
   const onlineNodes = allNodes.filter(n => n.status === 'online');
   if (onlineNodes.length > 0) {
@@ -818,10 +1138,10 @@ function nodeCardTemplate(n) {
   const isOnline = n.status === 'online';
   const statusBadge = isOnline
     ? `<span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-mono font-semibold bg-emerald-950/60 text-emerald-400 border border-emerald-800/40 shadow-glow-ok">
-         <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>ONLINE
+         <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>${t('online').toUpperCase()}
        </span>`
     : `<span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-mono font-semibold bg-zinc-900 text-zinc-400 border border-zinc-800">
-         <span class="w-1.5 h-1.5 rounded-full bg-zinc-600"></span>OFFLINE
+         <span class="w-1.5 h-1.5 rounded-full bg-zinc-600"></span>${t('offline').toUpperCase()}
        </span>`;
 
   const lastSeen = n.last_seen ? relativeTime(new Date(n.last_seen)) : '—';
@@ -832,7 +1152,7 @@ function nodeCardTemplate(n) {
   <article
     class="card-glass rounded-xl p-5 cursor-pointer flex flex-col justify-between group"
     onclick="openModal('${escHtml(n.node_id)}')"
-    title="Click to view charts, processes, and remote actions"
+    title="${escHtml(n.hostname)}"
   >
     <!-- Card Header -->
     <div>
@@ -851,15 +1171,15 @@ function nodeCardTemplate(n) {
 
       <!-- Resource Bars -->
       <div class="space-y-3 pt-1">
-        ${renderResourceBar('CPU', n.cpu_percent)}
-        ${renderResourceBar('RAM', n.mem_percent)}
-        ${renderResourceBar('Disk', n.disk_percent)}
+        ${renderResourceBar(t('cpu'), n.cpu_percent)}
+        ${renderResourceBar(t('ram'), n.mem_percent)}
+        ${renderResourceBar(t('disk'), n.disk_percent)}
       </div>
     </div>
 
     <!-- Card Footer -->
     <div class="mt-4 pt-3.5 border-t border-zinc-800/60 flex items-center justify-between text-xs font-mono text-zinc-500">
-      <div class="flex items-center gap-1.5" title="Network Throughput (Total)">
+      <div class="flex items-center gap-1.5" title="Network Throughput">
         <span class="text-zinc-600">↓</span><span>${bytesRx}</span>
         <span class="text-zinc-700">·</span>
         <span class="text-zinc-600">↑</span><span>${bytesTx}</span>
@@ -899,21 +1219,7 @@ async function openModal(nodeId) {
   document.getElementById('modal-subtitle-id').textContent = `Node ID: ${n.node_id}`;
 
   updateModalLiveBadges(n);
-
-  const metaItems = [
-    ['Operating System', `${n.os} / ${n.platform || 'amd64'}`],
-    ['Kernel Version',   n.kernel_version || '—'],
-    ['Agent Version',    n.agent_version || '—'],
-    ['Status State',     n.status.toUpperCase()],
-    ['Containers',       Array.isArray(n.containers) ? `${n.containers.length} active` : '0'],
-    ['Last Contact',     n.last_seen ? new Date(n.last_seen).toLocaleTimeString() : '—'],
-  ];
-
-  document.getElementById('modal-meta').innerHTML = metaItems.map(([k, v]) => `
-    <div class="p-3 rounded-xl border border-zinc-800 bg-zinc-950/60">
-      <p class="text-[10px] font-semibold text-zinc-500 uppercase tracking-wider">${k}</p>
-      <p class="text-xs font-mono text-zinc-200 truncate mt-0.5 font-medium">${escHtml(String(v))}</p>
-    </div>`).join('');
+  updateModalStaticContent(n);
 
   renderModalProcesses(n);
   renderModalContainers(n);
@@ -937,15 +1243,33 @@ async function openModal(nodeId) {
   }
 }
 
+function updateModalStaticContent(n) {
+  if (!n) return;
+  const metaItems = [
+    [t('operatingSystem'), `${n.os} / ${n.platform || 'amd64'}`],
+    [t('kernelVersion'),   n.kernel_version || '—'],
+    [t('agentVersion'),    n.agent_version || '—'],
+    [t('statusState'),     (n.status === 'online' ? t('online') : t('offline')).toUpperCase()],
+    [t('containers'),       Array.isArray(n.containers) ? `${n.containers.length} ${t('online')}` : '0'],
+    [t('lastContact'),     n.last_seen ? new Date(n.last_seen).toLocaleTimeString() : '—'],
+  ];
+
+  document.getElementById('modal-meta').innerHTML = metaItems.map(([k, v]) => `
+    <div class="p-3 rounded-xl border border-zinc-800 bg-zinc-950/60">
+      <p class="text-[10px] font-semibold text-zinc-500 uppercase tracking-wider">${k}</p>
+      <p class="text-xs font-mono text-zinc-200 truncate mt-0.5 font-medium">${escHtml(String(v))}</p>
+    </div>`).join('');
+}
+
 function updateModalLiveBadges(node) {
   const pill = document.getElementById('modal-status-pill');
   if (pill) {
     if (node.status === 'online') {
       pill.className = 'text-[10px] font-mono px-2 py-0.5 rounded-full uppercase tracking-wider font-semibold bg-emerald-950/60 text-emerald-400 border border-emerald-800/40';
-      pill.textContent = 'ONLINE';
+      pill.textContent = t('online').toUpperCase();
     } else {
       pill.className = 'text-[10px] font-mono px-2 py-0.5 rounded-full uppercase tracking-wider font-semibold bg-zinc-900 text-zinc-400 border border-zinc-800';
-      pill.textContent = 'OFFLINE';
+      pill.textContent = t('offline').toUpperCase();
     }
   }
 
@@ -963,10 +1287,10 @@ function renderModalProcesses(node) {
   if (!tbody || !node) return;
 
   const procs = Array.isArray(node.processes) ? node.processes : [];
-  if (countEl) countEl.textContent = `${procs.length} sampled`;
+  if (countEl) countEl.textContent = `${procs.length} ${t('sampled')}`;
 
   if (procs.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="5" class="py-6 text-center text-zinc-500 font-mono">No active process data available</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="5" class="py-6 text-center text-zinc-500 font-mono">${t('noProcessData')}</td></tr>`;
     return;
   }
 
@@ -1008,10 +1332,10 @@ function renderModalContainers(node) {
   if (!tbody || !node) return;
 
   const containers = Array.isArray(node.containers) ? node.containers : [];
-  if (countEl) countEl.textContent = `${containers.length} containers`;
+  if (countEl) countEl.textContent = `${containers.length} ${t('containers')}`;
 
   if (containers.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="6" class="py-6 text-center text-zinc-500 font-mono">No active Docker containers detected</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="6" class="py-6 text-center text-zinc-500 font-mono">${t('noDockerContainers')}</td></tr>`;
     return;
   }
 
@@ -1049,7 +1373,7 @@ function renderModalContainers(node) {
       <td class="py-2.5 px-3.5 text-right">
         <button onclick="runNodeAction('restart_docker_container', { container_id: '${escHtml(c.name || c.id)}' })"
           class="px-2.5 py-1 rounded-lg text-xs font-mono font-medium border border-zinc-800 bg-zinc-900 hover:bg-zinc-800 hover:border-brand-500/50 hover:text-white text-zinc-300 transition-all">
-          Restart
+          ${t('btnRestart')}
         </button>
       </td>
     </tr>`;
@@ -1107,7 +1431,7 @@ let activeActionPolling = null;
 
 async function runNodeAction(actionName, params = {}) {
   if (!activeNodeId) {
-    toast('No node selected', 'warn');
+    toast(t('toastNoNodeSelected'), 'warn');
     return;
   }
 
@@ -1131,7 +1455,7 @@ async function runNodeAction(actionName, params = {}) {
   consoleBadge.textContent = 'DISPATCHING';
   consoleBadge.classList.remove('hidden');
   consoleDuration.classList.add('hidden');
-  consoleOutput.textContent = `$ Enqueuing action '${actionName}' for node '${activeNodeId}'...\nWaiting for agent acknowledgment...`;
+  consoleOutput.textContent = `$ ${t('enqueuingAction')} '${actionName}' [${activeNodeId}]...\n${t('waitingAgentAck')}`;
 
   try {
     const res = await fetch(`/api/v1/nodes/${encodeURIComponent(activeNodeId)}/actions`, {
@@ -1147,7 +1471,7 @@ async function runNodeAction(actionName, params = {}) {
 
     const enq = await res.json();
     const actionId = enq.id;
-    consoleOutput.textContent += `\nAction enqueued (ID: ${actionId}).\nPolling for execution result...`;
+    consoleOutput.textContent += `\n${t('actionEnqueued')} (ID: ${actionId}).\n${t('pollingResult')}`;
     consoleBadge.textContent = 'EXECUTING';
 
     let attempts = 0;
@@ -1178,16 +1502,16 @@ async function runNodeAction(actionName, params = {}) {
           if (data.status === 'success') {
             consoleBadge.className = 'text-[10px] font-mono font-medium px-2 py-0.5 rounded border bg-emerald-950/60 text-emerald-400 border-emerald-800/40';
             consoleBadge.textContent = `EXIT: 0 (OK)`;
-            consoleOutput.textContent = data.stdout || '(Completed successfully with no output)';
+            consoleOutput.textContent = data.stdout || t('noStdoutOutput');
             if (data.stderr) {
-              consoleOutput.textContent += '\n\n[STDERR]:\n' + data.stderr;
+              consoleOutput.textContent += `\n\n${t('stderrHeader')}\n` + data.stderr;
             }
-            toast(`Action '${actionName}' completed (${data.duration_ms}ms)`, 'success');
+            toast(`'${actionName}' ${t('toastActionCompleted')} (${data.duration_ms}ms)`, 'success');
           } else {
             consoleBadge.className = 'text-[10px] font-mono font-medium px-2 py-0.5 rounded border bg-rose-950/60 text-rose-400 border-rose-800/40';
             consoleBadge.textContent = `EXIT: ${data.exit_code} (FAILED)`;
-            consoleOutput.textContent = (data.stderr || data.stdout || 'Action failed.') + `\n\nExit Code: ${data.exit_code}`;
-            toast(`Action '${actionName}' failed`, 'error');
+            consoleOutput.textContent = (data.stderr || data.stdout || t('actionFailed')) + `\n\nExit Code: ${data.exit_code}`;
+            toast(`'${actionName}' ${t('toastActionFailed')}`, 'error');
           }
         }
       } catch (e) {
@@ -1204,8 +1528,8 @@ async function runNodeAction(actionName, params = {}) {
         if (spinner) spinner.classList.add('hidden');
         consoleBadge.className = 'text-[10px] font-mono font-medium px-2 py-0.5 rounded border bg-rose-950/60 text-rose-400 border-rose-800/40';
         consoleBadge.textContent = 'TIMEOUT';
-        consoleOutput.textContent += '\n\n[ERROR]: Action timed out after 15 seconds. Ensure agent is online.';
-        toast(`Action '${actionName}' timed out`, 'error');
+        consoleOutput.textContent += `\n\n${t('actionTimedOut')}`;
+        toast(`'${actionName}' ${t('toastActionTimedOut')}`, 'error');
       }
     }, 500);
 
@@ -1218,7 +1542,7 @@ async function runNodeAction(actionName, params = {}) {
     consoleBadge.className = 'text-[10px] font-mono font-medium px-2 py-0.5 rounded border bg-rose-950/60 text-rose-400 border-rose-800/40';
     consoleBadge.textContent = 'ERROR';
     consoleOutput.textContent = `[FAILED TO DISPATCH]:\n${err.message}`;
-    toast(`Failed to trigger action: ${err.message}`, 'error');
+    toast(`${t('toastFailedToTrigger')} ${err.message}`, 'error');
   }
 }
 
@@ -1234,7 +1558,7 @@ function clearActionConsole() {
   if (consoleName) consoleName.textContent = '';
   if (consoleBadge) consoleBadge.classList.add('hidden');
   if (consoleDuration) consoleDuration.classList.add('hidden');
-  if (consoleOutput) consoleOutput.textContent = 'Ready. Select an action above to trigger remote execution.';
+  if (consoleOutput) consoleOutput.textContent = t('consoleReady');
 }
 
 /* ================================================================
@@ -1288,14 +1612,14 @@ async function saveAlertSettings(event) {
       body: JSON.stringify(payload)
     });
     if (res.ok) {
-      toast('Alert settings saved successfully', 'success');
+      toast(t('toastAlertSaved'), 'success');
       closeAlertModal();
     } else {
       const err = await res.text();
-      toast('Failed to save alert settings: ' + err, 'error');
+      toast(t('toastAlertSaveFailed') + ' ' + err, 'error');
     }
   } catch (e) {
-    toast('Error saving alert settings: ' + e.message, 'error');
+    toast(t('toastAlertSaveFailed') + ' ' + e.message, 'error');
   } finally {
     btn.disabled = false;
     btn.classList.remove('opacity-50');
@@ -1305,7 +1629,7 @@ async function saveAlertSettings(event) {
 async function testAlertNotification() {
   const webhookUrl = document.getElementById('alert-webhook-url').value.trim();
   if (!webhookUrl) {
-    toast('Please enter a Webhook URL first', 'warn');
+    toast(t('toastEnterWebhookFirst'), 'warn');
     return;
   }
   const btn = document.getElementById('btn-test-alert');
@@ -1320,12 +1644,12 @@ async function testAlertNotification() {
     });
     const data = await res.json().catch(() => ({}));
     if (res.ok) {
-      toast('Test notification sent successfully!', 'success');
+      toast(t('toastTestSent'), 'success');
     } else {
-      toast('Webhook test failed: ' + (data.error || 'Check URL'), 'error');
+      toast(t('toastTestFailed') + ' ' + (data.error || 'Check URL'), 'error');
     }
   } catch (e) {
-    toast('Network error: ' + e.message, 'error');
+    toast(t('toastNetworkError') + ' ' + e.message, 'error');
   } finally {
     btn.disabled = false;
     btn.classList.remove('opacity-50');
@@ -1392,16 +1716,17 @@ function fmtBytes(b) {
 
 function relativeTime(date) {
   const delta = Math.floor((Date.now() - date) / 1000);
-  if (delta < 5) return 'just now';
-  if (delta < 60) return `${delta}s ago`;
-  if (delta < 3600) return `${Math.floor(delta / 60)}m ago`;
-  return `${Math.floor(delta / 3600)}h ago`;
+  if (delta < 5) return t('justNow');
+  if (delta < 60) return `${delta}${t('sAgo')}`;
+  if (delta < 3600) return `${Math.floor(delta / 60)}${t('mAgo')}`;
+  return `${Math.floor(delta / 3600)}${t('hAgo')}`;
 }
 
 /* ================================================================
    Initialization
    ================================================================ */
 document.addEventListener('DOMContentLoaded', () => {
+  setLanguage(currentLang);
   fetchNodes();
   connectSSE();
   setInterval(fetchNodes, POLL_INTERVAL);
