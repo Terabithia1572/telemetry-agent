@@ -219,12 +219,91 @@
               <th class="py-2.5 px-3 font-medium">Status</th>
               <th class="py-2.5 px-3 font-medium text-right">CPU %</th>
               <th class="py-2.5 px-3 font-medium text-right">Memory Usage / Limit</th>
+              <th class="py-2.5 px-3 font-medium text-right">Action</th>
             </tr>
           </thead>
           <tbody id="modal-container-table" class="divide-y divide-surface-border/50 text-slate-300">
             <!-- populated dynamically -->
           </tbody>
         </table>
+      </div>
+    </div>
+
+    <!-- ── Quick Diagnostic & Remediation Actions ──────────────────────── -->
+    <div class="mt-6 pt-5 border-t border-surface-border">
+      <div class="flex items-center justify-between mb-3">
+        <h4 class="text-xs text-slate-400 font-semibold uppercase tracking-wider flex items-center gap-2">
+          <svg class="w-4 h-4 text-accent" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+          </svg>
+          Quick Diagnostic & Remediation Actions
+        </h4>
+        <span class="text-[11px] text-slate-500 font-mono">Whitelisted &amp; Isolated</span>
+      </div>
+
+      <!-- Action Buttons -->
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5 mb-4">
+        <!-- Flush DNS -->
+        <button id="btn-action-flush_dns" onclick="runNodeAction('flush_dns')"
+          class="bg-surface hover:bg-surface-card border border-surface-border hover:border-accent text-slate-200 px-3.5 py-2.5 rounded-lg flex items-center justify-between transition-colors group">
+          <div class="flex items-center gap-2.5">
+            <span class="text-amber-400 text-base">⚡</span>
+            <div class="text-left">
+              <span class="block text-xs font-medium text-white group-hover:text-accent">Flush DNS Cache</span>
+              <span class="block text-[10px] text-slate-500">ipconfig / resolvectl</span>
+            </div>
+          </div>
+          <span class="spinner hidden w-3.5 h-3.5 border-2 border-accent border-t-transparent rounded-full animate-spin"></span>
+        </button>
+
+        <!-- Clean Temp -->
+        <button id="btn-action-clean_temp" onclick="runNodeAction('clean_temp')"
+          class="bg-surface hover:bg-surface-card border border-surface-border hover:border-accent text-slate-200 px-3.5 py-2.5 rounded-lg flex items-center justify-between transition-colors group">
+          <div class="flex items-center gap-2.5">
+            <span class="text-emerald-400 text-base">🧹</span>
+            <div class="text-left">
+              <span class="block text-xs font-medium text-white group-hover:text-accent">Clean Temp Files</span>
+              <span class="block text-[10px] text-slate-500">Purge OS junk files</span>
+            </div>
+          </div>
+          <span class="spinner hidden w-3.5 h-3.5 border-2 border-accent border-t-transparent rounded-full animate-spin"></span>
+        </button>
+
+        <!-- Ping Gateway -->
+        <button id="btn-action-ping_gateway" onclick="runNodeAction('ping_gateway')"
+          class="bg-surface hover:bg-surface-card border border-surface-border hover:border-accent text-slate-200 px-3.5 py-2.5 rounded-lg flex items-center justify-between transition-colors group">
+          <div class="flex items-center gap-2.5">
+            <span class="text-cyan-400 text-base">🌐</span>
+            <div class="text-left">
+              <span class="block text-xs font-medium text-white group-hover:text-accent">Ping Diagnostic</span>
+              <span class="block text-[10px] text-slate-500">4-packet ping 1.1.1.1</span>
+            </div>
+          </div>
+          <span class="spinner hidden w-3.5 h-3.5 border-2 border-accent border-t-transparent rounded-full animate-spin"></span>
+        </button>
+      </div>
+
+      <!-- Terminal Console Box -->
+      <div id="action-console-container" class="rounded-lg border border-surface-border bg-[#0d1117] overflow-hidden">
+        <div class="flex items-center justify-between px-3.5 py-2 border-b border-[#2a2d3e] bg-[#161b22]">
+          <div class="flex items-center gap-2">
+            <span class="w-2.5 h-2.5 rounded-full bg-red-500/80 inline-block"></span>
+            <span class="w-2.5 h-2.5 rounded-full bg-yellow-500/80 inline-block"></span>
+            <span class="w-2.5 h-2.5 rounded-full bg-green-500/80 inline-block"></span>
+            <span class="text-[11px] font-mono text-slate-400 ml-1.5 flex items-center gap-1.5">
+              <span>Terminal Console</span>
+              <span id="console-action-name" class="text-accent font-semibold"></span>
+            </span>
+          </div>
+          <div class="flex items-center gap-2">
+            <span id="console-status-badge" class="hidden text-[10px] font-mono font-medium px-2 py-0.5 rounded border"></span>
+            <span id="console-duration-badge" class="hidden text-[10px] font-mono text-slate-400"></span>
+            <button onclick="clearActionConsole()" title="Clear Console" class="text-slate-500 hover:text-slate-300 transition-colors p-1 text-xs font-mono">
+              Clear
+            </button>
+          </div>
+        </div>
+        <pre id="action-console-output" class="p-3.5 font-mono text-xs text-slate-300 leading-relaxed overflow-x-auto max-h-52 overflow-y-auto whitespace-pre-wrap selection:bg-accent/40 selection:text-white">Ready. Select an action above to execute remote remediation.</pre>
       </div>
     </div>
   </div>
@@ -624,7 +703,7 @@ function renderModalContainers(node) {
   if (countEl) countEl.textContent = `${containers.length} containers`;
 
   if (containers.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="5" class="py-6 text-center text-slate-500 font-mono">No active Docker containers detected</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="6" class="py-6 text-center text-slate-500 font-mono">No active Docker containers detected</td></tr>`;
     return;
   }
 
@@ -673,6 +752,12 @@ function renderModalContainers(node) {
       <td class="py-2.5 px-3 text-right font-mono text-slate-300">
         ${memUsage} / ${memLimit}
       </td>
+      <td class="py-2.5 px-3 text-right">
+        <button onclick="runNodeAction('restart_docker_container', { container_id: '${escHtml(c.name || c.id)}' })"
+          class="px-2 py-0.5 rounded text-[11px] font-mono border border-surface-border bg-surface-card hover:border-accent hover:text-white text-slate-300 transition-colors">
+          Restart
+        </button>
+      </td>
     </tr>`;
   }).join('');
 }
@@ -682,6 +767,7 @@ function closeModal(event) {
   document.getElementById('modal').classList.add('hidden');
   document.body.style.overflow = '';
   activeNodeId = null;
+  clearActionConsole();
   Object.values(charts).forEach(c => c.destroy());
   charts = {};
 }
@@ -722,6 +808,148 @@ function flashIndicator(color) {
   const el = document.getElementById('refresh-indicator');
   el.style.background = color;
   setTimeout(() => { el.style.background = '#22c55e'; }, 400);
+}
+
+/* ================================================================
+   Remote Node Actions
+   ================================================================ */
+let activeActionPolling = null;
+
+async function runNodeAction(actionName, params = {}) {
+  if (!activeNodeId) {
+    toast('No node selected', 'warn');
+    return;
+  }
+
+  const btnId = `btn-action-${actionName}`;
+  const btn = document.getElementById(btnId);
+  const spinner = btn ? btn.querySelector('.spinner') : null;
+
+  // Set visual state on button
+  if (btn) {
+    btn.disabled = true;
+    btn.classList.add('opacity-60');
+  }
+  if (spinner) spinner.classList.remove('hidden');
+
+  // Set console state
+  const consoleName = document.getElementById('console-action-name');
+  const consoleBadge = document.getElementById('console-status-badge');
+  const consoleDuration = document.getElementById('console-duration-badge');
+  const consoleOutput = document.getElementById('action-console-output');
+
+  consoleName.textContent = `[${actionName}]`;
+  consoleBadge.className = 'text-[10px] font-mono font-medium px-2 py-0.5 rounded border bg-amber-950/60 text-warn border-amber-800/40';
+  consoleBadge.textContent = 'DISPATCHING';
+  consoleBadge.classList.remove('hidden');
+  consoleDuration.classList.add('hidden');
+  consoleOutput.textContent = `$ Enqueuing action '${actionName}' for node '${activeNodeId}'...\nWaiting for agent acknowledgment...`;
+
+  try {
+    const res = await fetch(`/api/v1/nodes/${encodeURIComponent(activeNodeId)}/actions`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: actionName, params: params })
+    });
+
+    if (!res.ok) {
+      const errText = await res.text();
+      throw new Error(errText || `HTTP ${res.status}`);
+    }
+
+    const enq = await res.json();
+    const actionId = enq.id;
+    consoleOutput.textContent += `\nAction enqueued (ID: ${actionId}).\nPolling for agent execution result...`;
+    consoleBadge.textContent = 'EXECUTING';
+
+    // Poll for result
+    let attempts = 0;
+    const maxAttempts = 30; // 15 seconds max
+
+    if (activeActionPolling) clearInterval(activeActionPolling);
+
+    activeActionPolling = setInterval(async () => {
+      attempts++;
+      try {
+        const pollRes = await fetch(`/api/v1/nodes/${encodeURIComponent(activeNodeId)}/actions/${encodeURIComponent(actionId)}`);
+        if (!pollRes.ok) return;
+
+        const data = await pollRes.json();
+        if (data.status === 'success' || data.status === 'failed') {
+          clearInterval(activeActionPolling);
+          activeActionPolling = null;
+
+          // Restore button state
+          if (btn) {
+            btn.disabled = false;
+            btn.classList.remove('opacity-60');
+          }
+          if (spinner) spinner.classList.add('hidden');
+
+          // Render duration badge
+          consoleDuration.textContent = `${data.duration_ms}ms`;
+          consoleDuration.classList.remove('hidden');
+
+          if (data.status === 'success') {
+            consoleBadge.className = 'text-[10px] font-mono font-medium px-2 py-0.5 rounded border bg-emerald-950/60 text-ok border-emerald-800/40';
+            consoleBadge.textContent = `EXIT: 0 (OK)`;
+            consoleOutput.textContent = data.stdout || '(Completed successfully with no standard output)';
+            if (data.stderr) {
+              consoleOutput.textContent += '\n\n[STDERR]:\n' + data.stderr;
+            }
+            toast(`Action '${actionName}' completed successfully (${data.duration_ms}ms)`, 'success');
+          } else {
+            consoleBadge.className = 'text-[10px] font-mono font-medium px-2 py-0.5 rounded border bg-red-950/60 text-danger border-danger/40';
+            consoleBadge.textContent = `EXIT: ${data.exit_code} (FAILED)`;
+            consoleOutput.textContent = (data.stderr || data.stdout || 'Action execution failed.') + `\n\nExit Code: ${data.exit_code}`;
+            toast(`Action '${actionName}' failed (exit ${data.exit_code})`, 'error');
+          }
+        }
+      } catch (e) {
+        console.warn('action poll error', e);
+      }
+
+      if (attempts >= maxAttempts) {
+        clearInterval(activeActionPolling);
+        activeActionPolling = null;
+        if (btn) {
+          btn.disabled = false;
+          btn.classList.remove('opacity-60');
+        }
+        if (spinner) spinner.classList.add('hidden');
+        consoleBadge.className = 'text-[10px] font-mono font-medium px-2 py-0.5 rounded border bg-red-950/60 text-danger border-danger/40';
+        consoleBadge.textContent = 'TIMEOUT';
+        consoleOutput.textContent += '\n\n[ERROR]: Execution polling timed out after 15 seconds. Ensure the telemetry agent is running and connected.';
+        toast(`Action '${actionName}' timed out waiting for agent`, 'error');
+      }
+    }, 500);
+
+  } catch (err) {
+    if (btn) {
+      btn.disabled = false;
+      btn.classList.remove('opacity-60');
+    }
+    if (spinner) spinner.classList.add('hidden');
+    consoleBadge.className = 'text-[10px] font-mono font-medium px-2 py-0.5 rounded border bg-red-950/60 text-danger border-danger/40';
+    consoleBadge.textContent = 'ERROR';
+    consoleOutput.textContent = `[FAILED TO DISPATCH ACTION]:\n${err.message}`;
+    toast(`Failed to trigger action: ${err.message}`, 'error');
+  }
+}
+
+function clearActionConsole() {
+  if (activeActionPolling) {
+    clearInterval(activeActionPolling);
+    activeActionPolling = null;
+  }
+  const consoleName = document.getElementById('console-action-name');
+  const consoleBadge = document.getElementById('console-status-badge');
+  const consoleDuration = document.getElementById('console-duration-badge');
+  const consoleOutput = document.getElementById('action-console-output');
+  if (consoleName) consoleName.textContent = '';
+  if (consoleBadge) consoleBadge.classList.add('hidden');
+  if (consoleDuration) consoleDuration.classList.add('hidden');
+  if (consoleOutput) consoleOutput.textContent = 'Ready. Select an action above to execute remote remediation.';
 }
 
 /* ================================================================

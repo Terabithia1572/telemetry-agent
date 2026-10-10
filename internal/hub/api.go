@@ -14,11 +14,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"math/rand"
 	"net/http"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/telemetry-agent/internal/actions"
 	"github.com/telemetry-agent/internal/hub/alerting"
 	"github.com/telemetry-agent/internal/model"
 )
@@ -51,8 +53,16 @@ func NewAPI(store *Store, authToken string, offlineAfter time.Duration, engine *
 func (a *API) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/v1/metrics", a.handleIngest)
 	mux.HandleFunc("GET /api/v1/nodes", a.handleListNodes)
-	mux.HandleFunc("GET /api/v1/nodes/", a.handleNodeRoute) // matches /api/v1/nodes/{id} and /api/v1/nodes/{id}/history
+	mux.HandleFunc("GET /api/v1/nodes/{id}/history", a.handleGetNodeHistory)
+	mux.HandleFunc("GET /api/v1/nodes/{id}", a.handleGetNode)
 	mux.HandleFunc("GET /api/v1/events", a.handleSSE)
+
+	// Remote Actions API
+	mux.HandleFunc("POST /api/v1/nodes/{id}/actions", a.handleEnqueueAction)
+	mux.HandleFunc("GET /api/v1/nodes/{id}/actions/pending", a.handleGetPendingActions)
+	mux.HandleFunc("POST /api/v1/nodes/{id}/actions/{action_id}/result", a.handleSaveActionResult)
+	mux.HandleFunc("GET /api/v1/nodes/{id}/actions/{action_id}", a.handleGetAction)
+	mux.HandleFunc("GET /api/v1/nodes/{id}/actions", a.handleListActions)
 
 	// Alert settings & testing
 	mux.HandleFunc("GET /api/v1/alerts/config", a.handleGetAlertConfig)
@@ -175,45 +185,38 @@ func (a *API) handleListNodes(w http.ResponseWriter, r *http.Request) {
 	a.jsonOK(w, nodes)
 }
 
-// ── Node route (/api/v1/nodes/{id} and /api/v1/nodes/{id}/history) ────────────
+// ── Node routes (/api/v1/nodes/{id} and /api/v1/nodes/{id}/history) ───────────
 
-// handleNodeRoute handles /api/v1/nodes/{id} and /api/v1/nodes/{id}/history.
-func (a *API) handleNodeRoute(w http.ResponseWriter, r *http.Request) {
-	path := strings.TrimPrefix(r.URL.Path, "/api/v1/nodes/")
-
-	// Check if this is a history query
-	if strings.HasSuffix(path, "/history") {
-		nodeID := strings.TrimSuffix(path, "/history")
-		nodeID = strings.Trim(nodeID, "/")
-		if nodeID == "" || strings.Contains(nodeID, "/") {
-			a.jsonError(w, http.StatusBadRequest, "invalid node id in path")
-			return
-		}
-
-		windowStr := r.URL.Query().Get("window")
-		window := time.Hour // default 1 h
-		if windowStr != "" {
-			if d, err := time.ParseDuration(windowStr); err == nil && d > 0 {
-				window = d
-			}
-		}
-
-		pts, err := a.store.GetHistory(r.Context(), nodeID, window, 240)
-		if err != nil {
-			a.log.Error("get history: store error", "node_id", nodeID, "error", err)
-			a.jsonError(w, http.StatusInternalServerError, "storage error")
-			return
-		}
-		if pts == nil {
-			pts = []MetricPoint{}
-		}
-		a.jsonOK(w, pts)
+func (a *API) handleGetNodeHistory(w http.ResponseWriter, r *http.Request) {
+	nodeID := r.PathValue("id")
+	if nodeID == "" {
+		a.jsonError(w, http.StatusBadRequest, "invalid node id in path")
 		return
 	}
 
-	// Single node query: /api/v1/nodes/{id}
-	nodeID := strings.Trim(path, "/")
-	if nodeID == "" || strings.Contains(nodeID, "/") {
+	windowStr := r.URL.Query().Get("window")
+	window := time.Hour // default 1 h
+	if windowStr != "" {
+		if d, err := time.ParseDuration(windowStr); err == nil && d > 0 {
+			window = d
+		}
+	}
+
+	pts, err := a.store.GetHistory(r.Context(), nodeID, window, 240)
+	if err != nil {
+		a.log.Error("get history: store error", "node_id", nodeID, "error", err)
+		a.jsonError(w, http.StatusInternalServerError, "storage error")
+		return
+	}
+	if pts == nil {
+		pts = []MetricPoint{}
+	}
+	a.jsonOK(w, pts)
+}
+
+func (a *API) handleGetNode(w http.ResponseWriter, r *http.Request) {
+	nodeID := r.PathValue("id")
+	if nodeID == "" {
 		a.jsonError(w, http.StatusBadRequest, "invalid node id in path")
 		return
 	}
@@ -229,6 +232,134 @@ func (a *API) handleNodeRoute(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	a.jsonOK(w, node)
+}
+
+// ── Remote Actions Handlers ───────────────────────────────────────────────────
+
+type enqueueActionRequest struct {
+	Action string            `json:"action"`
+	Params map[string]string `json:"params"`
+}
+
+func (a *API) handleEnqueueAction(w http.ResponseWriter, r *http.Request) {
+	nodeID := r.PathValue("id")
+	if nodeID == "" {
+		a.jsonError(w, http.StatusBadRequest, "node id is required")
+		return
+	}
+
+	var req enqueueActionRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		a.jsonError(w, http.StatusBadRequest, "invalid request body: "+err.Error())
+		return
+	}
+
+	if !actions.IsAllowed(req.Action) {
+		a.jsonError(w, http.StatusBadRequest, fmt.Sprintf("unauthorized action %q; only whitelisted actions are allowed", req.Action))
+		return
+	}
+
+	actionID := fmt.Sprintf("act-%d-%06x", time.Now().UnixMilli(), rand.Intn(0xffffff))
+	record, err := a.store.EnqueueAction(r.Context(), actionID, nodeID, req.Action, req.Params)
+	if err != nil {
+		a.log.Error("enqueue action: store error", "node_id", nodeID, "action", req.Action, "error", err)
+		a.jsonError(w, http.StatusInternalServerError, "failed to enqueue action")
+		return
+	}
+
+	w.WriteHeader(http.StatusCreated)
+	a.jsonOK(w, record)
+}
+
+func (a *API) handleGetPendingActions(w http.ResponseWriter, r *http.Request) {
+	nodeID := r.PathValue("id")
+	if nodeID == "" {
+		a.jsonError(w, http.StatusBadRequest, "node id is required")
+		return
+	}
+
+	pending, err := a.store.GetPendingActions(r.Context(), nodeID)
+	if err != nil {
+		a.log.Error("get pending actions: store error", "node_id", nodeID, "error", err)
+		a.jsonError(w, http.StatusInternalServerError, "storage error")
+		return
+	}
+	a.jsonOK(w, pending)
+}
+
+type saveActionResultRequest struct {
+	Status     string `json:"status"` // "success" | "failed"
+	Stdout     string `json:"stdout"`
+	Stderr     string `json:"stderr"`
+	ExitCode   int    `json:"exit_code"`
+	DurationMs int64  `json:"duration_ms"`
+}
+
+func (a *API) handleSaveActionResult(w http.ResponseWriter, r *http.Request) {
+	nodeID := r.PathValue("id")
+	actionID := r.PathValue("action_id")
+	if actionID == "" {
+		a.jsonError(w, http.StatusBadRequest, "action id is required")
+		return
+	}
+
+	var res saveActionResultRequest
+	if err := json.NewDecoder(r.Body).Decode(&res); err != nil {
+		a.jsonError(w, http.StatusBadRequest, "invalid result body: "+err.Error())
+		return
+	}
+
+	if res.Status == "" {
+		if res.ExitCode == 0 {
+			res.Status = "success"
+		} else {
+			res.Status = "failed"
+		}
+	}
+
+	if err := a.store.SaveActionResult(r.Context(), actionID, nodeID, res.Status, res.Stdout, res.Stderr, res.ExitCode, res.DurationMs); err != nil {
+		a.log.Error("save action result: store error", "action_id", actionID, "error", err)
+		a.jsonError(w, http.StatusInternalServerError, "failed to save result")
+		return
+	}
+
+	a.jsonOK(w, map[string]string{"status": "recorded", "action_id": actionID})
+}
+
+func (a *API) handleGetAction(w http.ResponseWriter, r *http.Request) {
+	actionID := r.PathValue("action_id")
+	if actionID == "" {
+		a.jsonError(w, http.StatusBadRequest, "action id is required")
+		return
+	}
+
+	record, err := a.store.GetAction(r.Context(), actionID)
+	if err != nil {
+		a.log.Error("get action: store error", "action_id", actionID, "error", err)
+		a.jsonError(w, http.StatusInternalServerError, "storage error")
+		return
+	}
+	if record == nil {
+		a.jsonError(w, http.StatusNotFound, "action not found")
+		return
+	}
+	a.jsonOK(w, record)
+}
+
+func (a *API) handleListActions(w http.ResponseWriter, r *http.Request) {
+	nodeID := r.PathValue("id")
+	if nodeID == "" {
+		a.jsonError(w, http.StatusBadRequest, "node id is required")
+		return
+	}
+
+	records, err := a.store.GetNodeActions(r.Context(), nodeID, 20)
+	if err != nil {
+		a.log.Error("list node actions: store error", "node_id", nodeID, "error", err)
+		a.jsonError(w, http.StatusInternalServerError, "storage error")
+		return
+	}
+	a.jsonOK(w, records)
 }
 
 // ── SSE ───────────────────────────────────────────────────────────────────────

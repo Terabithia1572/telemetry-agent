@@ -82,8 +82,8 @@ func Load() Config {
 		fmt.Fprintf(os.Stderr, "config: invalid interval %q: %v\n", *intervalStr, err)
 		os.Exit(1)
 	}
-	if interval < 5*time.Second {
-		fmt.Fprintf(os.Stderr, "config: interval %v is too short; minimum is 5s\n", interval)
+	if interval < 1*time.Second {
+		fmt.Fprintf(os.Stderr, "config: interval %v is too short; minimum is 1s\n", interval)
 		os.Exit(1)
 	}
 

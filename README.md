@@ -1,291 +1,175 @@
-# Telemetry Agent
+# Telemetry Agent & DevOps Observability Platform
 
 [![Go Version](https://img.shields.io/badge/Go-1.22+-00ADD8?style=flat&logo=go)](https://go.dev)
 [![License](https://img.shields.io/badge/license-MIT-blue?style=flat)](LICENSE)
-[![Build](https://img.shields.io/badge/build-passing-brightgreen?style=flat)](#build)
+[![Build](https://img.shields.io/badge/build-passing-brightgreen?style=flat)](#building-from-source)
 [![RSS](https://img.shields.io/badge/memory-%3C15%20MB%20RSS-success?style=flat)](#footprint)
 [![CPU](https://img.shields.io/badge/cpu-%3C0.5%25%20idle-success?style=flat)](#footprint)
 
-A **zero-dependency, ultra-lightweight system telemetry agent** written in pure Go. Inspired by [Beszel](https://github.com/henrygd/beszel) and [node_exporter](https://github.com/prometheus/node_exporter), it collects hardware and OS metrics and ships them to a central hub over HTTP — as a single, statically linked binary under 15 MB RSS.
+A **zero-dependency, ultra-lightweight system telemetry agent and central observability control plane** written in pure Go. Inspired by [Beszel](https://github.com/henrygd/beszel) and [node_exporter](https://github.com/prometheus/node_exporter), the platform features multi-subsystem hardware telemetry, top process consumption tables, Docker container observability, threshold-based alerting with Discord/Slack webhooks, and secure, whitelisted remote remediation actions.
+
+Both the **Agent** (`telemetry-agent`) and **Hub** (`telemetry-hub`) compile to statically linked, standalone binaries with zero runtime dependencies.
 
 ---
 
-## Table of Contents
+## Complete Feature Matrix
 
-- [Features](#features)
-- [Architecture](#architecture)
-- [Quick Start](#quick-start)
-- [Installation](#installation)
-- [Configuration Reference](#configuration-reference)
-- [Telemetry Payload](#telemetry-payload)
-- [Running as a Service](#running-as-a-service)
-- [Building from Source](#building-from-source)
-- [Footprint](#footprint)
-- [Contributing](#contributing)
-
----
-
-## Features
-
-| Capability | Detail |
-|---|---|
-| **Zero runtime deps** | Single static binary, no libc, no external libraries needed at runtime |
-| **Cross-platform** | Linux (x86_64, ARM64) and Windows (x86_64) |
-| **Minimal footprint** | < 15 MB RSS · < 0.5 % CPU between ticks |
-| **Resilient transport** | Exponential backoff with jitter; hub downtime never crashes the agent |
-| **Structured logging** | JSON output via `log/slog`; configurable level |
-| **Graceful shutdown** | SIGINT / SIGTERM drains in-flight requests and exits cleanly |
-| **Clean architecture** | Config · Model · Collector · Transport — each in a dedicated package |
-
-### Metrics collected
-
-- **Host** — hostname, OS, platform, kernel version, uptime
-- **CPU** — aggregate + per-core utilisation (500 ms sampling window)
-- **Memory** — physical RAM and swap: total / used / free / %
-- **Disk** — per-mount-point: capacity, utilisation %, and cumulative IO counters
-- **Network** — per-interface: bytes, packets, drops, and errors (TX + RX)
+| Capability | Scope | Details |
+|---|---|---|
+| **Zero Runtime Dependencies** | Agent & Hub | Statically linked pure-Go binaries (`CGO_ENABLED=0`), no libc or external daemon dependencies. |
+| **Minimal Footprint** | Agent | Strict `< 15 MB` RSS memory and `< 0.5%` CPU utilization between telemetry ticks. |
+| **Multi-Subsystem Telemetry** | Agent | CPU (aggregate + per-core), RAM (physical + swap), Disk (mount points + I/O), Network (TX/RX bandwidth & drops), and Host metadata. |
+| **Top Process Monitoring** | Agent & Hub | Real-time extraction of top resource-consuming processes (PID, Name, CPU %, Memory RSS, Memory %). |
+| **Docker Container Monitoring** | Agent & Hub | Auto-discovers containers via Unix socket or Windows named pipe (Status, CPU %, Memory usage / limit). Gracefully skips when Docker is absent. |
+| **Embedded Control Plane** | Hub | Built-in SQLite storage (`modernc.org/sqlite`), Server-Sent Events (SSE) live updates, and embedded dark-mode Tailwind CSS dashboard. |
+| **Threshold Alerting Engine** | Hub | Evaluates CPU, Memory, Disk thresholds, and offline node transitions (>30s silence) with 10-minute cooldown protection and green recovery notifications. |
+| **Universal Webhook Dispatcher** | Hub | Rich Discord embeds (colored status bars) and Slack-compatible attachments with instant delivery testing. |
+| **Secure Remote Actions** | Agent & Hub | Whitelisted diagnostic & remediation actions (`flush_dns`, `clean_temp`, `ping_gateway`, `restart_docker_container`) with interactive web terminal console. |
 
 ---
 
-## Architecture
+## Platform Architecture
 
 ```
-┌─────────────────────────────────────────────────────────┐
-│                     telemetry-agent                      │
-│                                                         │
-│  ┌─────────┐    ┌──────────────────────────────────┐   │
-│  │ config  │───▶│         Orchestrator              │   │
-│  └─────────┘    │  (ticker every N seconds)         │   │
-│                 │                                   │   │
-│  ┌──────────┐   │  ┌──────────┐  ┌──────────────┐  │   │
-│  │HostColl. │◀──┤  │ CPU Coll │  │ Memory Coll. │  │   │
-│  └──────────┘   │  └──────────┘  └──────────────┘  │   │
-│  ┌──────────┐   │  ┌──────────┐  ┌──────────────┐  │   │
-│  │DiskColl. │◀──┤  │ Net Coll │  │  (future…)   │  │   │
-│  └──────────┘   │  └──────────┘  └──────────────┘  │   │
-│                 └────────────┬─────────────────────┘   │
-│                              │ TelemetryReport          │
-│                              ▼                          │
-│                    ┌──────────────────┐                 │
-│                    │   HTTPSender     │                 │
-│                    │  (backoff+retry) │                 │
-│                    └────────┬─────────┘                 │
-└─────────────────────────────┼───────────────────────────┘
-                              │  POST /api/v1/metrics
-                              ▼
-                    ┌──────────────────┐
-                    │   Telemetry Hub  │
-                    │  (your backend)  │
-                    └──────────────────┘
-```
-
-### Package layout
-
-```
-telemetry-agent/
-├── cmd/
-│   ├── agent/main.go           # Agent entrypoint: config → logger → sender → orchestrator
-│   └── hub/main.go             # Hub entrypoint: sqlite store → REST API → embedded web dashboard
-├── internal/
-│   ├── config/config.go        # Flags + ENV → validated Config struct
-│   ├── model/metrics.go        # TelemetryReport and all sub-types (JSON)
-│   ├── collector/
-│   │   ├── collector.go        # Collector interface + Orchestrator ticker
-│   │   └── system.go           # Host, CPU, Memory, Disk, Network collectors
-│   ├── transport/
-│   │   ├── sender.go           # Sender interface (Send + Close)
-│   │   └── http_sender.go      # HTTP POST + exponential backoff with jitter
-│   └── hub/
-│       ├── store.go            # Pure-Go SQLite persistence layer (modernc.org/sqlite)
-│       ├── api.go              # REST API endpoints, auth middleware & SSE broker
-│       └── server.go           # HTTP server, CORS, access logs & graceful shutdown
-├── webui/
-│   ├── embed.go                # go:embed static asset package
-│   └── web/index.html          # Embedded dark-mode Tailwind + Chart.js dashboard
-├── scripts/build.sh            # Size-optimised release build script
-├── Makefile                    # Targets: build, build-hub, build-all, run, run-hub, test
-└── README.md
+┌────────────────────────────────────────────────────────┐
+│                   Managed Host (Agent)                 │
+│                                                        │
+│   ┌──────────────┐     ┌────────────────────────────┐  │
+│   │ config (ENV) │────▶│       Orchestrator         │  │
+│   └──────────────┘     │   (ticker every N seconds) │  │
+│                        │                            │  │
+│   ┌──────────────┐     │  ┌───────────┐ ┌────────┐  │  │
+│   │ Host / CPU   │◀────┤  │ Memory    │ │ Disk   │  │  │
+│   └──────────────┘     │  └───────────┘ └────────┘  │  │
+│   ┌──────────────┐     │  ┌───────────┐ ┌────────┐  │  │
+│   │ Top Processes│◀────┤  │ Network   │ │ Docker │  │  │
+│   └──────────────┘     │  └───────────┘ └────────┘  │  │
+│                        └─────────────┬──────────────┘  │
+│   ┌──────────────┐                   │ Report Payload  │
+│   │ Action Worker│◀───┐              ▼                 │
+│   │ (DNS/Ping/   │    │      ┌───────────────┐         │
+│   │  Temp/Docker)│    │      │  HTTPSender   │         │
+│   └──────┬───────┘    │      │ (retry+jitter)│         │
+│          │            │      └───────┬───────┘         │
+└──────────┼────────────┼──────────────┼─────────────────┘
+           │ Result     │ Poll Actions │ POST /api/v1/metrics
+           ▼            ▼              ▼
+┌────────────────────────────────────────────────────────┐
+│                 Central Telemetry Hub                  │
+│                                                        │
+│   ┌────────────────────┐     ┌───────────────────────┐ │
+│   │  REST API & SSE    │────▶│ SQLite DB (modernc)   │ │
+│   │  Router (Go 1.22+) │     │ (nodes, history, acts)│ │
+│   └──────────┬─────────┘     └──────────┬────────────┘ │
+│              │                          │              │
+│              ▼                          ▼              │
+│   ┌────────────────────┐     ┌───────────────────────┐ │
+│   │  Embedded Web UI   │     │ Alerting Engine       │ │
+│   │  (Dark Dashboard)  │     │ (Discord / Slack)     │ │
+│   └────────────────────┘     └───────────────────────┘ │
+└────────────────────────────────────────────────────────┘
 ```
 
 ---
 
 ## Quick Start
 
+### 1. Launch the Telemetry Hub
 ```bash
-# 1. Download the latest binary (Linux x86_64)
-curl -L https://github.com/your-org/telemetry-agent/releases/latest/download/telemetry-agent-linux-amd64 \
-  -o telemetry-agent
-chmod +x telemetry-agent
+# Start Hub server with embedded SQLite and dark dashboard
+./dist/telemetry-hub --listen=:18080 --db=telemetry.db
+```
+Open **[http://localhost:18080](http://localhost:18080)** in your browser.
 
-# 2. Run against your hub
-./telemetry-agent \
-  --hub-url https://hub.example.com \
-  --auth-token YOUR_TOKEN \
-  --interval 15s \
-  --log-level info
+### 2. Launch the Telemetry Agent
+In a separate terminal on any monitored server:
+```bash
+./dist/telemetry-agent --hub-url=http://localhost:18080 --interval=5s
 ```
 
 ---
 
-## Installation
+## Remote Actions & Remediation
 
-### Binary (recommended)
+Security is paramount: **arbitrary shell execution is strictly disallowed**. The agent only executes whitelisted, parameter-validated actions with a hard 10-second timeout:
 
-Download the pre-built binary for your platform from the [Releases](https://github.com/your-org/telemetry-agent/releases) page.
+| Action | Supported Systems | Description |
+|---|---|---|
+| `flush_dns` | Windows, Linux, macOS | Flushes local DNS resolver (`ipconfig /flushdns`, `resolvectl flush-caches`, `dscacheutil`). |
+| `clean_temp` | All platforms | Safely purges temporary files in the OS temp directory, preserving active/locked files. |
+| `ping_gateway` | Windows, Linux, macOS | Executes a 4-packet diagnostic ping to `1.1.1.1` or a sanitized custom target. |
+| `restart_docker_container` | Docker hosts | Safely restarts a target Docker container (`params: {"container_id": "name"}`). |
 
-| Platform | Binary |
-|---|---|
-| Linux x86_64 | `telemetry-agent-linux-amd64` |
-| Linux ARM64 | `telemetry-agent-linux-arm64` |
-| Windows x86_64 | `telemetry-agent-windows-amd64.exe` |
-
-### Docker
-
-```dockerfile
-FROM scratch
-COPY telemetry-agent-linux-amd64 /telemetry-agent
-ENTRYPOINT ["/telemetry-agent"]
-```
-
-```bash
-docker run --rm \
-  -e HUB_URL=https://hub.example.com \
-  -e AUTH_TOKEN=YOUR_TOKEN \
-  -e INTERVAL=15s \
-  ghcr.io/your-org/telemetry-agent:latest
-```
+### Triggering Actions via Web UI
+Inside the Node Details modal:
+1. Click **⚡ Flush DNS Cache**, **🧹 Clean Temp Files**, or **🌐 Ping Diagnostic**.
+2. For Docker nodes, click **Restart** on any container row.
+3. Observe live execution status, duration ($ms$), and raw output in the embedded terminal console.
 
 ---
 
-## Configuration Reference
+## Alerting Engine & Webhooks
 
-All options can be supplied as **CLI flags** or **environment variables**.  
-Flags take precedence over environment variables.
+The Hub includes a background alerting engine that evaluates rules on each metric tick:
+- **CPU Threshold Alert:** Breaches when CPU utilization exceeds configurable threshold (default `90%`).
+- **Memory Threshold Alert:** Breaches when RAM utilization exceeds threshold (default `90%`).
+- **Disk Threshold Alert:** Breaches when Disk usage exceeds threshold (default `90%`).
+- **Offline Node Alert:** Fires when an agent has been silent for $> 30\text{s}$.
+- **Flapping Protection:** 10-minute cooldown window prevents repeated spam for the same condition.
+- **Auto-Resolution:** Emits a green **RESOLVED** notification when conditions clear.
+
+### Supported Webhooks
+- **Discord Webhooks:** Rich embeds with colored sidebars (Red `#EF4444` firing, Green `#22C55E` resolved), node metadata, and timestamps.
+- **Slack / Generic JSON Webhooks:** Compatible with standard Slack incoming webhook attachments.
+
+Configure webhooks directly in the dashboard via the **Bell Icon** in the top navigation bar.
+
+---
+
+## API Reference
+
+### Telemetry & Ingestion
+| Method | Endpoint | Description |
+|---|---|---|
+| `POST` | `/api/v1/metrics` | Ingests a `TelemetryReport` payload from an agent. |
+| `GET` | `/api/v1/nodes` | Lists all active and registered nodes with current health metrics. |
+| `GET` | `/api/v1/nodes/{id}` | Fetches full telemetry snapshot for a specific node. |
+| `GET` | `/api/v1/nodes/{id}/history?window=1h` | Returns time-series metric points for charting. |
+| `GET` | `/api/v1/events` | Server-Sent Events (SSE) stream pushing updates on each node change. |
+
+### Remote Actions Dispatcher
+| Method | Endpoint | Description |
+|---|---|---|
+| `POST` | `/api/v1/nodes/{id}/actions` | Enqueues a whitelisted action request for a node. |
+| `GET` | `/api/v1/nodes/{id}/actions/pending` | Agent polls for queued actions. |
+| `POST` | `/api/v1/nodes/{id}/actions/{action_id}/result` | Agent reports stdout, stderr, exit code, and duration. |
+| `GET` | `/api/v1/nodes/{id}/actions/{action_id}` | Polls action execution status and terminal output. |
+| `GET` | `/api/v1/nodes/{id}/actions` | Retrieves recent action history for a node. |
+
+### Alerting & Webhooks
+| Method | Endpoint | Description |
+|---|---|---|
+| `GET` | `/api/v1/alerts/config` | Retrieves current webhook URL and metric thresholds. |
+| `POST` | `/api/v1/alerts/config` | Updates alert rules and webhook destination. |
+| `POST` | `/api/v1/alerts/test` | Dispatches an immediate test notification to verify delivery. |
+
+---
+
+## Agent Configuration Reference
+
+All settings can be provided as CLI flags or environment variables:
 
 | Flag | Env Var | Default | Description |
 |---|---|---|---|
 | `--hub-url` | `HUB_URL` | `http://localhost:8080` | Base URL of the telemetry hub |
 | `--auth-token` | `AUTH_TOKEN` | _(empty)_ | Bearer token for hub authentication |
-| `--node-id` | `NODE_ID` | OS hostname | Stable identifier for this node |
-| `--interval` | `INTERVAL` | `15s` | Metric collection interval (min `5s`) |
-| `--log-level` | `LOG_LEVEL` | `info` | Log verbosity: `debug` · `info` · `warn` · `error` |
+| `--node-id` | `NODE_ID` | OS hostname | Stable unique identifier for the host |
+| `--interval` | `INTERVAL` | `15s` | Telemetry sampling interval (minimum `1s`) |
+| `--log-level` | `LOG_LEVEL` | `info` | Logging verbosity: `debug`, `info`, `warn`, `error` |
 | `--request-timeout` | — | `10s` | HTTP request timeout per attempt |
-| `--max-retries` | — | `5` | Max send retries before dropping a payload |
+| `--max-retries` | — | `5` | Exponential backoff retry attempts per tick |
 | `--retry-base-delay` | — | `500ms` | Initial backoff delay before first retry |
-| `--retry-max-delay` | — | `30s` | Maximum backoff delay cap |
-
----
-
-## Telemetry Payload
-
-Every collection tick produces a single JSON object posted to `POST <HUB_URL>/api/v1/metrics`:
-
-```jsonc
-{
-  "node_id": "web-01",
-  "agent_version": "v1.2.0",
-  "collected_at": "2024-01-15T10:30:00Z",
-  "host": {
-    "hostname": "web-01",
-    "os": "linux",
-    "platform": "ubuntu",
-    "platform_version": "22.04",
-    "kernel_version": "5.15.0-91-generic",
-    "uptime_seconds": 864000
-  },
-  "cpu": {
-    "core_count": 8,
-    "usage_percent": 12.5,
-    "per_core_percent": [14.2, 11.8, 13.1, 10.9, 12.0, 13.5, 11.2, 14.8]
-  },
-  "memory": {
-    "physical": { "total_bytes": 16777216000, "used_bytes": 8388608000, "free_bytes": 8388608000, "usage_percent": 50.0 },
-    "swap":     { "total_bytes": 4294967296,  "used_bytes": 0,          "free_bytes": 4294967296,  "usage_percent": 0.0  }
-  },
-  "disks": [
-    {
-      "mount_point": "/", "device": "/dev/sda1", "fstype": "ext4",
-      "total_bytes": 107374182400, "used_bytes": 32212254720,
-      "free_bytes": 75161927680,  "usage_percent": 30.0,
-      "read_bytes_total": 1073741824, "write_bytes_total": 536870912,
-      "read_ops_total": 102400, "write_ops_total": 51200
-    }
-  ],
-  "network": [
-    {
-      "interface": "eth0",
-      "bytes_sent": 1073741824, "bytes_recv": 2147483648,
-      "packets_sent": 1048576,   "packets_recv": 2097152,
-      "drop_in": 0, "drop_out": 0, "error_in": 0, "error_out": 0
-    }
-  ]
-}
-```
-
-### HTTP Headers
-
-| Header | Value |
-|---|---|
-| `Content-Type` | `application/json; charset=utf-8` |
-| `Authorization` | `Bearer <AUTH_TOKEN>` _(omitted when token is empty)_ |
-| `X-Node-ID` | The configured node identifier |
-| `X-Collected-At` | RFC3339 timestamp of the collection instant |
-| `User-Agent` | `telemetry-agent/1.0` |
-
----
-
-## Running as a Service
-
-### Linux — systemd
-
-Save as `/etc/systemd/system/telemetry-agent.service`:
-
-```ini
-[Unit]
-Description=Telemetry Agent
-After=network-online.target
-Wants=network-online.target
-
-[Service]
-Type=simple
-User=nobody
-ExecStart=/usr/local/bin/telemetry-agent \
-  --hub-url=https://hub.example.com \
-  --auth-token=YOUR_TOKEN \
-  --interval=15s
-Restart=on-failure
-RestartSec=5s
-# Hard memory cap — agent targets < 15 MB but this is a safety net.
-MemoryMax=64M
-# No new privileges, private /tmp.
-NoNewPrivileges=yes
-PrivateTmp=yes
-
-[Install]
-WantedBy=multi-user.target
-```
-
-```bash
-sudo systemctl daemon-reload
-sudo systemctl enable --now telemetry-agent
-sudo journalctl -u telemetry-agent -f
-```
-
-### Windows — Services (sc.exe)
-
-```powershell
-# Copy the binary
-Copy-Item .\telemetry-agent-windows-amd64.exe C:\Program Files\TelemetryAgent\agent.exe
-
-# Create the service
-sc.exe create TelemetryAgent `
-  binPath= '"C:\Program Files\TelemetryAgent\agent.exe" --hub-url=https://hub.example.com --auth-token=YOUR_TOKEN' `
-  start= auto `
-  DisplayName= "Telemetry Agent"
-
-sc.exe description TelemetryAgent "Lightweight system telemetry agent"
-sc.exe start TelemetryAgent
-```
+| `--retry-max-delay` | — | `30s` | Maximum retry backoff delay cap |
 
 ---
 
@@ -294,67 +178,38 @@ sc.exe start TelemetryAgent
 **Prerequisites:** Go 1.22+, Git
 
 ```bash
-git clone https://github.com/your-org/telemetry-agent.git
+git clone https://github.com/Terabithia1572/telemetry-agent.git
 cd telemetry-agent
 
-# Download dependencies
-go mod download
+# Build both binaries with zero CGO dependencies
+make build-all
 
-# Build for the current platform
-make build            # → ./dist/telemetry-agent
-
-# Cross-compile all platforms
-make build-all        # → ./dist/telemetry-agent-{linux-amd64,linux-arm64,windows-amd64.exe}
-
-# Run tests
-make test
-
-# Run locally (debug mode)
-HUB_URL=http://localhost:8080 make run
+# Or build individually:
+CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o dist/telemetry-agent ./cmd/agent
+CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o dist/telemetry-hub ./cmd/hub
 ```
 
-Using the shell script directly:
-
+### Running Tests
 ```bash
-# Linux/macOS/WSL
-chmod +x scripts/build.sh
-./scripts/build.sh
-
-# Cross-compile
-OS=linux ARCH=arm64 ./scripts/build.sh
-OS=windows ARCH=amd64 ./scripts/build.sh
+go test -v ./...
+go vet ./...
 ```
 
 ---
 
-## Footprint
+## Footprint & Resource Utilization
 
-The agent is engineered to be invisible on the host:
+The agent is engineered to be negligible on production hosts:
 
-| Metric | Target | Typical |
+| Metric | Target | Actual |
 |---|---|---|
-| RSS memory | < 15 MB | ~8–12 MB |
-| CPU (idle between ticks) | < 0.5 % | < 0.1 % |
-| Binary size (stripped) | — | ~10–14 MB |
-| Goroutines at rest | — | 5–8 |
-
-**Key decisions that minimise footprint:**
-- Single `time.Ticker` owned by the orchestrator; no per-collector goroutines.
-- Short-lived `bytes.Buffer` per tick — immediately GC'd after the HTTP POST.
-- Reused HTTP keep-alive connection pool (max 4 idle connections).
-- `CGO_ENABLED=0` + `-trimpath -s -w` = no C runtime, no debug bloat.
-
----
-
-## Contributing
-
-1. Fork the repository and create a feature branch.
-2. Run `make vet fmt test` before opening a PR.
-3. Keep each commit focused — one logical change per commit.
-4. Update documentation and add tests for new collectors or transport backends.
+| **RSS Memory** | `< 15 MB` | `~8–12 MB` |
+| **CPU Usage** | `< 0.5%` idle | `< 0.1%` |
+| **Binary Size** | Minimal | Single stripped binary (`~7 MB` Agent, `~11 MB` Hub with embedded UI) |
+| **Dependencies** | Zero | `CGO_ENABLED=0` static binary, runs on bare Alpine or `scratch` |
 
 ---
 
 ## License
 
-MIT © 2024 Your Organisation. See [LICENSE](LICENSE) for details.
+MIT License. Designed with high-performance systems engineering principles.

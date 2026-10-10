@@ -125,6 +125,20 @@ func applySchema(db *sql.DB) error {
 			disk_threshold   REAL NOT NULL DEFAULT 90.0,
 			enabled          INTEGER NOT NULL DEFAULT 0
 		)`,
+		`CREATE TABLE IF NOT EXISTS node_actions (
+			id          TEXT PRIMARY KEY,
+			node_id     TEXT NOT NULL REFERENCES nodes(node_id) ON DELETE CASCADE,
+			action      TEXT NOT NULL,
+			params      TEXT NOT NULL DEFAULT '{}',
+			status      TEXT NOT NULL DEFAULT 'queued',
+			stdout      TEXT NOT NULL DEFAULT '',
+			stderr      TEXT NOT NULL DEFAULT '',
+			exit_code   INTEGER NOT NULL DEFAULT 0,
+			duration_ms INTEGER NOT NULL DEFAULT 0,
+			created_at  DATETIME NOT NULL DEFAULT (datetime('now')),
+			executed_at DATETIME
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_actions_node_status ON node_actions(node_id, status)`,
 	}
 
 	for _, stmt := range stmts {
@@ -476,4 +490,203 @@ func parseSQLiteTime(s string) time.Time {
 		}
 	}
 	return time.Time{}
+}
+
+// ActionRecord represents a remote action row in the node_actions table.
+type ActionRecord struct {
+	ID         string            `json:"id"`
+	NodeID     string            `json:"node_id"`
+	Action     string            `json:"action"`
+	Params     map[string]string `json:"params"`
+	Status     string            `json:"status"` // "queued" | "running" | "success" | "failed"
+	Stdout     string            `json:"stdout"`
+	Stderr     string            `json:"stderr"`
+	ExitCode   int               `json:"exit_code"`
+	DurationMs int64             `json:"duration_ms"`
+	CreatedAt  time.Time         `json:"created_at"`
+	ExecutedAt *time.Time        `json:"executed_at,omitempty"`
+}
+
+// EnqueueAction inserts a new pending action row into node_actions.
+func (s *Store) EnqueueAction(ctx context.Context, actionID, nodeID, action string, params map[string]string) (*ActionRecord, error) {
+	if params == nil {
+		params = make(map[string]string)
+	}
+	paramsJSON, err := json.Marshal(params)
+	if err != nil {
+		paramsJSON = []byte("{}")
+	}
+
+	now := time.Now().UTC()
+	_, err = s.db.ExecContext(ctx, `
+		INSERT INTO node_actions (id, node_id, action, params, status, created_at)
+		VALUES (?, ?, ?, ?, 'queued', ?)`,
+		actionID, nodeID, action, string(paramsJSON), now.Format(time.RFC3339),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("store: enqueue action: %w", err)
+	}
+
+	return &ActionRecord{
+		ID:        actionID,
+		NodeID:    nodeID,
+		Action:    action,
+		Params:    params,
+		Status:    "queued",
+		CreatedAt: now,
+	}, nil
+}
+
+// GetPendingActions returns all queued actions for nodeID and transitions their status to 'running'.
+func (s *Store) GetPendingActions(ctx context.Context, nodeID string) ([]ActionRecord, error) {
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT id, node_id, action, params, status, created_at
+		FROM node_actions
+		WHERE node_id = ? AND status = 'queued'
+		ORDER BY created_at ASC`,
+		nodeID,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("store: get pending actions: %w", err)
+	}
+	defer rows.Close()
+
+	var results []ActionRecord
+	var ids []string
+	for rows.Next() {
+		var rec ActionRecord
+		var paramsStr, createdAtStr string
+		if err := rows.Scan(&rec.ID, &rec.NodeID, &rec.Action, &paramsStr, &rec.Status, &createdAtStr); err != nil {
+			return nil, fmt.Errorf("store: scan pending action: %w", err)
+		}
+		_ = json.Unmarshal([]byte(paramsStr), &rec.Params)
+		if rec.Params == nil {
+			rec.Params = make(map[string]string)
+		}
+		rec.CreatedAt = parseSQLiteTime(createdAtStr)
+		results = append(results, rec)
+		ids = append(ids, rec.ID)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("store: rows pending actions: %w", err)
+	}
+
+	// Mark fetched actions as 'running' so they are not dispatched multiple times
+	for _, id := range ids {
+		_, _ = s.db.ExecContext(ctx, `UPDATE node_actions SET status = 'running' WHERE id = ?`, id)
+	}
+
+	if results == nil {
+		results = []ActionRecord{}
+	}
+	return results, nil
+}
+
+// SaveActionResult updates an action record with its execution outcome.
+func (s *Store) SaveActionResult(ctx context.Context, actionID, nodeID string, status string, stdout, stderr string, exitCode int, durationMs int64) error {
+	now := time.Now().UTC()
+	res, err := s.db.ExecContext(ctx, `
+		UPDATE node_actions
+		SET status = ?, stdout = ?, stderr = ?, exit_code = ?, duration_ms = ?, executed_at = ?
+		WHERE id = ? AND node_id = ?`,
+		status, stdout, stderr, exitCode, durationMs, now.Format(time.RFC3339), actionID, nodeID,
+	)
+	if err != nil {
+		return fmt.Errorf("store: save action result: %w", err)
+	}
+	n, _ := res.RowsAffected()
+	if n == 0 {
+		_, err = s.db.ExecContext(ctx, `
+			UPDATE node_actions
+			SET status = ?, stdout = ?, stderr = ?, exit_code = ?, duration_ms = ?, executed_at = ?
+			WHERE id = ?`,
+			status, stdout, stderr, exitCode, durationMs, now.Format(time.RFC3339), actionID,
+		)
+		if err != nil {
+			return fmt.Errorf("store: save action result fallback: %w", err)
+		}
+	}
+	return nil
+}
+
+// GetAction retrieves a single action by its unique ID.
+func (s *Store) GetAction(ctx context.Context, actionID string) (*ActionRecord, error) {
+	row := s.db.QueryRowContext(ctx, `
+		SELECT id, node_id, action, params, status, stdout, stderr, exit_code, duration_ms, created_at, executed_at
+		FROM node_actions WHERE id = ?`,
+		actionID,
+	)
+
+	var rec ActionRecord
+	var paramsStr, createdAtStr string
+	var executedAtStr sql.NullString
+	if err := row.Scan(
+		&rec.ID, &rec.NodeID, &rec.Action, &paramsStr, &rec.Status,
+		&rec.Stdout, &rec.Stderr, &rec.ExitCode, &rec.DurationMs,
+		&createdAtStr, &executedAtStr,
+	); err != nil {
+		if err == sql.ErrNoRows {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("store: get action: %w", err)
+	}
+
+	_ = json.Unmarshal([]byte(paramsStr), &rec.Params)
+	if rec.Params == nil {
+		rec.Params = make(map[string]string)
+	}
+	rec.CreatedAt = parseSQLiteTime(createdAtStr)
+	if executedAtStr.Valid && executedAtStr.String != "" {
+		t := parseSQLiteTime(executedAtStr.String)
+		rec.ExecutedAt = &t
+	}
+	return &rec, nil
+}
+
+// GetNodeActions returns the most recent actions executed for a node.
+func (s *Store) GetNodeActions(ctx context.Context, nodeID string, limit int) ([]ActionRecord, error) {
+	if limit <= 0 || limit > 100 {
+		limit = 20
+	}
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT id, node_id, action, params, status, stdout, stderr, exit_code, duration_ms, created_at, executed_at
+		FROM node_actions WHERE node_id = ?
+		ORDER BY created_at DESC LIMIT ?`,
+		nodeID, limit,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("store: get node actions: %w", err)
+	}
+	defer rows.Close()
+
+	var results []ActionRecord
+	for rows.Next() {
+		var rec ActionRecord
+		var paramsStr, createdAtStr string
+		var executedAtStr sql.NullString
+		if err := rows.Scan(
+			&rec.ID, &rec.NodeID, &rec.Action, &paramsStr, &rec.Status,
+			&rec.Stdout, &rec.Stderr, &rec.ExitCode, &rec.DurationMs,
+			&createdAtStr, &executedAtStr,
+		); err != nil {
+			return nil, fmt.Errorf("store: scan node action: %w", err)
+		}
+		_ = json.Unmarshal([]byte(paramsStr), &rec.Params)
+		if rec.Params == nil {
+			rec.Params = make(map[string]string)
+		}
+		rec.CreatedAt = parseSQLiteTime(createdAtStr)
+		if executedAtStr.Valid && executedAtStr.String != "" {
+			t := parseSQLiteTime(executedAtStr.String)
+			rec.ExecutedAt = &t
+		}
+		results = append(results, rec)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("store: rows node actions: %w", err)
+	}
+	if results == nil {
+		results = []ActionRecord{}
+	}
+	return results, nil
 }

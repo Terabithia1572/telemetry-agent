@@ -17,7 +17,9 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
+	"github.com/telemetry-agent/internal/actions"
 	"github.com/telemetry-agent/internal/collector"
 	"github.com/telemetry-agent/internal/config"
 	"github.com/telemetry-agent/internal/transport"
@@ -69,6 +71,11 @@ func main() {
 			logger.Warn("sender close error", "error", cerr)
 		}
 	}()
+
+	// ── Remote action worker ──────────────────────────────────────────────────
+	actionRunner := actions.NewRunner(10*time.Second, logger)
+	actionWorker := actions.NewWorker(sender, actionRunner, logger, cfg.NodeID, 2*time.Second)
+	go actionWorker.Run(ctx)
 
 	// ── Subsystem collectors ──────────────────────────────────────────────────
 	orchestrator := collector.NewOrchestrator(

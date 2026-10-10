@@ -25,8 +25,11 @@ import (
 	"log/slog"
 	"math/rand"
 	"net/http"
+	"net/url"
+	"strings"
 	"time"
 
+	"github.com/telemetry-agent/internal/actions"
 	"github.com/telemetry-agent/internal/model"
 )
 
@@ -34,6 +37,7 @@ import (
 type HTTPSender struct {
 	client         *http.Client
 	endpoint       string // e.g. "https://hub.example.com/api/v1/metrics"
+	hubURL         string // base hub URL
 	authToken      string
 	nodeID         string
 	maxRetries     int
@@ -110,7 +114,8 @@ func NewHTTPSender(cfg HTTPSenderConfig) (*HTTPSender, error) {
 			Timeout:   cfg.RequestTimeout,
 			Transport: transport,
 		},
-		endpoint:       cfg.HubURL + "/api/v1/metrics",
+		endpoint:       strings.TrimRight(cfg.HubURL, "/") + "/api/v1/metrics",
+		hubURL:         strings.TrimRight(cfg.HubURL, "/"),
 		authToken:      cfg.AuthToken,
 		nodeID:         cfg.NodeID,
 		maxRetries:     cfg.MaxRetries,
@@ -231,6 +236,79 @@ func (s *HTTPSender) backoffDelay(attempt int) time.Duration {
 func (s *HTTPSender) Close() error {
 	if t, ok := s.client.Transport.(*http.Transport); ok {
 		t.CloseIdleConnections()
+	}
+	return nil
+}
+
+// FetchPendingActions retrieves any queued commands dispatched to this node.
+func (s *HTTPSender) FetchPendingActions(ctx context.Context, nodeID string) ([]actions.ActionRequest, error) {
+	targetURL := fmt.Sprintf("%s/api/v1/nodes/%s/actions/pending", s.hubURL, url.PathEscape(nodeID))
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, targetURL, nil)
+	if err != nil {
+		return nil, fmt.Errorf("build pending actions request: %w", err)
+	}
+
+	req.Header.Set("Accept", "application/json")
+	req.Header.Set("X-Node-ID", nodeID)
+	req.Header.Set("User-Agent", "telemetry-agent/1.0")
+	if s.authToken != "" {
+		req.Header.Set("Authorization", "Bearer "+s.authToken)
+	}
+
+	resp, err := s.client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("fetch pending actions: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("hub returned HTTP %d on pending actions", resp.StatusCode)
+	}
+
+	var pending []actions.ActionRequest
+	if err := json.NewDecoder(resp.Body).Decode(&pending); err != nil {
+		return nil, fmt.Errorf("decode pending actions: %w", err)
+	}
+	return pending, nil
+}
+
+// SubmitActionResult delivers action execution stdout, stderr, and exit code to the hub.
+func (s *HTTPSender) SubmitActionResult(ctx context.Context, res actions.ActionResult) error {
+	targetURL := fmt.Sprintf("%s/api/v1/nodes/%s/actions/%s/result", s.hubURL, url.PathEscape(res.NodeID), url.PathEscape(res.ActionID))
+
+	payload := map[string]interface{}{
+		"status":      res.Status,
+		"stdout":      res.Stdout,
+		"stderr":      res.Stderr,
+		"exit_code":   res.ExitCode,
+		"duration_ms": res.DurationMs,
+	}
+
+	bodyBytes, err := json.Marshal(payload)
+	if err != nil {
+		return fmt.Errorf("marshal action result: %w", err)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, targetURL, bytes.NewReader(bodyBytes))
+	if err != nil {
+		return fmt.Errorf("build action result request: %w", err)
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-Node-ID", res.NodeID)
+	req.Header.Set("User-Agent", "telemetry-agent/1.0")
+	if s.authToken != "" {
+		req.Header.Set("Authorization", "Bearer "+s.authToken)
+	}
+
+	resp, err := s.client.Do(req)
+	if err != nil {
+		return fmt.Errorf("submit action result: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return fmt.Errorf("hub returned HTTP %d on action result", resp.StatusCode)
 	}
 	return nil
 }
