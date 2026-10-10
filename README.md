@@ -6,9 +6,37 @@
 [![RSS](https://img.shields.io/badge/memory-%3C15%20MB%20RSS-success?style=flat)](#footprint)
 [![CPU](https://img.shields.io/badge/cpu-%3C0.5%25%20idle-success?style=flat)](#footprint)
 
+<p align="center">
+  <img src="assets/dashboard.png" alt="Telemetry Hub Dashboard Preview" width="100%" />
+</p>
+
 A **zero-dependency, ultra-lightweight system telemetry agent and central observability control plane** written in pure Go. Inspired by [Beszel](https://github.com/henrygd/beszel) and [node_exporter](https://github.com/prometheus/node_exporter), the platform features multi-subsystem hardware telemetry, top process consumption tables, Docker container observability, threshold-based alerting with Discord/Slack webhooks, and secure, whitelisted remote remediation actions.
 
 Both the **Agent** (`telemetry-agent`) and **Hub** (`telemetry-hub`) compile to statically linked, standalone binaries with zero runtime dependencies.
+
+---
+
+## Features & UI Walkthrough
+
+The Telemetry Hub embeds a responsive, dark-mode web dashboard inspired by modern design systems (TailAdmin & shadcn/ui). It provides full fleet-level awareness, node inspection, and remediation without third-party dependencies or external databases.
+
+### Fleet Overview & Real-Time Telemetry
+- **Cluster KPIs:** Live summary of total nodes, online health ratio, cluster-wide aggregate CPU load, memory allocation, and active Docker containers.
+- **Dynamic Node Cards:** Visual resource gauges with color-coded warning/critical states, network bandwidth throughput counters, and relative heartbeat timestamps.
+- **Instant Search & Filtering:** Filter nodes in real time by hostname, operating system, or connectivity status (All / Online / Offline).
+- **Dual-Language i18n:** Built-in Turkish (**TR**, default) and English (**EN**) language switching persisted across sessions.
+
+### Node Inspection & Embedded Action Terminal
+
+<p align="center">
+  <img src="assets/node-details.png" alt="Node Metrics & Hardware Details" width="49%" />
+  <img src="assets/node-terminal.png" alt="Remote Actions & Terminal Console" width="49%" />
+</p>
+
+- **Deep Hardware & OS Telemetry:** Inspect kernel versions, CPU architecture, host uptime, and 1-hour time-series metric graphs for CPU, RAM, and storage.
+- **Top Resource-Consuming Processes:** Real-time visibility into the highest CPU- and memory-consuming processes (`chrome.exe`, background workers, system daemons).
+- **Docker Container Observability:** Monitor container status, CPU percent, and memory limits for isolated services.
+- **Whitelisted Remote Actions & Web Terminal Console:** Safely trigger DNS flushing, temp directory cleaning, network gateway pings, and container restarts with instant streaming execution output in the interactive console.
 
 ---
 
