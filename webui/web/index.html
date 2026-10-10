@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Telemetry Hub</title>
+  <title>Telemetry Hub — Next-Gen Infrastructure Observability</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
     tailwind.config = {
@@ -11,495 +11,791 @@
       theme: {
         extend: {
           colors: {
-            surface: { DEFAULT: '#0f1117', card: '#1a1d27', border: '#2a2d3e' },
-            accent:  { DEFAULT: '#6366f1', hover: '#818cf8', muted: '#312e81' },
-            ok:      '#22c55e',
-            warn:    '#f59e0b',
-            danger:  '#ef4444',
+            brand: {
+              50: '#eef2ff',
+              100: '#e0e7ff',
+              200: '#c7d2fe',
+              300: '#a5b4fc',
+              400: '#818cf8',
+              500: '#6366f1',
+              600: '#4f46e5',
+              700: '#4338ca',
+              800: '#3730a3',
+              900: '#312e81',
+              950: '#1e1b4b',
+            },
+            surface: {
+              DEFAULT: '#09090b',
+              card: '#121215',
+              subtle: '#18181b',
+              border: '#27272a',
+            },
+            ok: '#10b981',
+            warn: '#f59e0b',
+            danger: '#f43f5e',
           },
-          fontFamily: { mono: ['JetBrains Mono', 'Fira Code', 'monospace'] },
+          fontFamily: {
+            sans: ['Inter', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'sans-serif'],
+            mono: ['JetBrains Mono', 'Fira Code', 'Menlo', 'monospace'],
+          },
+          boxShadow: {
+            glow: '0 0 24px -4px rgba(99, 102, 241, 0.18)',
+            'glow-ok': '0 0 20px -4px rgba(16, 185, 129, 0.25)',
+            'glow-danger': '0 0 20px -4px rgba(244, 63, 94, 0.25)',
+          }
         }
       }
     }
   </script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
   <style>
     * { box-sizing: border-box; }
-    body { font-family: 'Inter', sans-serif; background: #0f1117; }
-    ::-webkit-scrollbar { width: 6px; }
-    ::-webkit-scrollbar-track { background: #0f1117; }
-    ::-webkit-scrollbar-thumb { background: #2a2d3e; border-radius: 3px; }
+    body {
+      font-family: 'Inter', sans-serif;
+      background-color: #09090b;
+      background-image: 
+        radial-gradient(ellipse 80% 50% at 50% -20%, rgba(99, 102, 241, 0.08), transparent 70%),
+        radial-gradient(circle at 100% 0%, rgba(16, 185, 129, 0.03), transparent 30%);
+      background-attachment: fixed;
+      color: #f4f4f5;
+    }
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: #09090b; }
+    ::-webkit-scrollbar-thumb { background: #27272a; border-radius: 9999px; }
+    ::-webkit-scrollbar-thumb:hover { background: #3f3f46; }
 
-    .stat-bar-track { background: #2a2d3e; border-radius: 9999px; overflow: hidden; height: 6px; }
-    .stat-bar-fill  { height: 100%; border-radius: 9999px; transition: width 0.6s ease; }
-
-    .pulse-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
-    .pulse-online  { background: #22c55e; box-shadow: 0 0 0 0 rgba(34,197,94,0.6); animation: pulse 2s infinite; }
-    .pulse-offline { background: #6b7280; }
-
-    @keyframes pulse {
-      0%   { box-shadow: 0 0 0 0 rgba(34,197,94,0.6); }
-      70%  { box-shadow: 0 0 0 6px rgba(34,197,94,0); }
-      100% { box-shadow: 0 0 0 0 rgba(34,197,94,0); }
+    .card-glass {
+      background: rgba(18, 18, 21, 0.85);
+      backdrop-filter: blur(12px);
+      border: 1px solid rgba(39, 39, 42, 0.8);
+      transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .card-glass:hover {
+      border-color: rgba(99, 102, 241, 0.5);
+      transform: translateY(-2px);
+      box-shadow: 0 12px 30px -10px rgba(0, 0, 0, 0.8), 0 0 20px -2px rgba(99, 102, 241, 0.12);
     }
 
-    .card-hover { transition: border-color 0.2s, transform 0.15s; }
-    .card-hover:hover { border-color: #6366f1; transform: translateY(-2px); }
+    .modal-backdrop {
+      position: fixed; inset: 0;
+      background: rgba(0, 0, 0, 0.82);
+      backdrop-filter: blur(8px);
+      z-index: 50;
+      display: flex; align-items: center; justify-content: center;
+      padding: 1rem;
+    }
+    .modal-container {
+      background: #101014;
+      border: 1px solid #27272a;
+      border-radius: 1rem;
+      width: min(840px, 96vw);
+      max-height: 92vh;
+      overflow-y: auto;
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.9), 0 0 0 1px rgba(255, 255, 255, 0.05);
+    }
 
-    .modal-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 50; display: flex; align-items: center; justify-content: center; }
-    .modal { background: #1a1d27; border: 1px solid #2a2d3e; border-radius: 12px; padding: 24px; width: min(780px, 96vw); max-height: 90vh; overflow-y: auto; }
-
-    .skeleton { background: linear-gradient(90deg, #1a1d27 25%, #22263a 50%, #1a1d27 75%); background-size: 200% 100%; animation: shimmer 1.5s infinite; border-radius: 8px; }
+    .skeleton {
+      background: linear-gradient(90deg, #18181b 25%, #27272a 50%, #18181b 75%);
+      background-size: 200% 100%;
+      animation: shimmer 1.6s infinite ease-in-out;
+      border-radius: 0.75rem;
+    }
     @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
 
-    canvas { max-height: 160px; }
+    .pulse-glow-online {
+      box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7);
+      animation: pulseGreen 2s infinite;
+    }
+    @keyframes pulseGreen {
+      0% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
+      70% { box-shadow: 0 0 0 6px rgba(16, 185, 129, 0); }
+      100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+    }
+
+    .stat-bar-track {
+      background: #1f1f23;
+      border-radius: 9999px;
+      overflow: hidden;
+      height: 6px;
+      position: relative;
+    }
+    .stat-bar-fill {
+      height: 100%;
+      border-radius: 9999px;
+      transition: width 0.7s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    canvas { max-height: 155px; }
+
+    @keyframes slideInUp {
+      from { transform: translateY(16px); opacity: 0; }
+      to { transform: translateY(0); opacity: 1; }
+    }
+    .animate-slide-up {
+      animation: slideInUp 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
   </style>
 </head>
 
-<body class="min-h-screen text-slate-200">
+<body class="min-h-screen text-zinc-100 antialiased selection:bg-brand-500/30 selection:text-white">
 
-<!-- ── Top navigation bar ─────────────────────────────────────────────── -->
-<nav class="sticky top-0 z-40 border-b border-surface-border bg-surface/90 backdrop-blur">
-  <div class="max-w-7xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between">
-    <div class="flex items-center gap-3">
-      <!-- Logo / icon -->
-      <svg class="w-7 h-7 text-accent" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-        <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
-      </svg>
-      <span class="font-semibold text-base tracking-tight text-white">Telemetry Hub</span>
-      <span id="hub-version" class="text-xs text-slate-500 font-mono hidden sm:block"></span>
+<!-- ── World-Class Top Navigation Bar ──────────────────────────────────── -->
+<header class="sticky top-0 z-40 border-b border-zinc-800/80 bg-zinc-950/80 backdrop-blur-xl">
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
+    <!-- Brand Title & Status Pill -->
+    <div class="flex items-center gap-3.5">
+      <div class="w-9 h-9 rounded-xl bg-gradient-to-tr from-brand-600 to-indigo-400 p-0.5 shadow-glow flex items-center justify-center">
+        <div class="w-full h-full bg-zinc-950 rounded-[10px] flex items-center justify-center">
+          <svg class="w-5 h-5 text-brand-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+          </svg>
+        </div>
+      </div>
+      <div>
+        <div class="flex items-center gap-2">
+          <span class="font-bold text-base tracking-tight text-white">Telemetry</span>
+          <span class="text-[10px] font-mono font-semibold px-2 py-0.5 rounded-full bg-zinc-800/90 text-brand-300 border border-zinc-700/60 uppercase tracking-widest">Hub</span>
+        </div>
+        <p class="text-[11px] text-zinc-500 font-medium hidden sm:block">Fleet Observability &amp; Remediation Platform</p>
+      </div>
     </div>
 
-    <div class="flex items-center gap-4 text-sm">
-      <span class="text-slate-500">Nodes:</span>
-      <span id="nav-total"  class="font-semibold text-white">—</span>
-      <span class="text-slate-600">|</span>
-      <span class="text-ok font-medium" id="nav-online">— online</span>
-      <span class="text-slate-500 font-medium" id="nav-offline">— offline</span>
-      <div id="refresh-indicator" class="w-2 h-2 rounded-full bg-slate-600 ml-1" title="Live"></div>
-      <!-- Alert settings button -->
-      <button onclick="openAlertModal()" title="Alerts & Notifications"
-        class="ml-2 p-1.5 rounded-lg border border-surface-border bg-surface-card hover:border-accent hover:text-white text-slate-400 transition-colors flex items-center justify-center">
-        <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+    <!-- Cluster Overview Capsule & Actions -->
+    <div class="flex items-center gap-3 text-xs">
+      <!-- Cluster Status Pill Group -->
+      <div class="hidden md:flex items-center gap-2 bg-zinc-900/90 border border-zinc-800/90 rounded-full px-3.5 py-1.5 shadow-inner">
+        <div class="flex items-center gap-1.5">
+          <span class="text-zinc-500 text-[11px] font-medium uppercase tracking-wider">Nodes:</span>
+          <span id="nav-total" class="font-mono font-semibold text-white">—</span>
+        </div>
+        <span class="text-zinc-700">|</span>
+        <div class="flex items-center gap-1.5">
+          <span class="w-2 h-2 rounded-full bg-ok pulse-glow-online"></span>
+          <span id="nav-online" class="font-mono font-semibold text-emerald-400">— online</span>
+        </div>
+        <span class="text-zinc-700">|</span>
+        <div class="flex items-center gap-1.5">
+          <span class="w-1.5 h-1.5 rounded-full bg-zinc-600"></span>
+          <span id="nav-offline" class="font-mono text-zinc-500">— offline</span>
+        </div>
+      </div>
+
+      <!-- Live Heartbeat Indicator -->
+      <div class="flex items-center gap-2 px-2.5 py-1.5 rounded-lg border border-zinc-800 bg-zinc-900/60" title="Connected to Server-Sent Events stream">
+        <div id="refresh-indicator" class="w-2 h-2 rounded-full bg-emerald-500 transition-colors duration-300"></div>
+        <span class="text-[11px] font-mono text-zinc-400 font-medium hidden lg:inline">LIVE</span>
+      </div>
+
+      <!-- Alert Settings Trigger Button -->
+      <button onclick="openAlertModal()" title="Alert Rules & Notifications"
+        class="relative p-2 rounded-lg border border-zinc-800 bg-zinc-900 hover:bg-zinc-800/90 hover:border-zinc-700 text-zinc-400 hover:text-white transition-all shadow-sm group">
+        <svg class="w-4 h-4 text-zinc-400 group-hover:text-brand-400 transition-colors" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
           <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
         </svg>
+        <span id="alert-badge-indicator" class="hidden absolute top-1.5 right-1.5 w-1.5 h-1.5 bg-brand-500 rounded-full"></span>
       </button>
     </div>
   </div>
-</nav>
+</header>
 
-<!-- ── Main content ────────────────────────────────────────────────────── -->
-<main class="max-w-7xl mx-auto px-4 sm:px-6 py-8">
+<!-- ── Main Dashboard Workspace ────────────────────────────────────────── -->
+<main class="max-w-7xl mx-auto px-4 sm:px-6 py-7">
 
-  <!-- Search & filter bar -->
-  <div class="flex flex-col sm:flex-row gap-3 mb-6">
-    <input id="search-input"
-      type="text" placeholder="Filter nodes by hostname or OS…"
-      class="flex-1 bg-surface-card border border-surface-border rounded-lg px-4 py-2 text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:border-accent transition-colors" />
-    <select id="status-filter"
-      class="bg-surface-card border border-surface-border rounded-lg px-3 py-2 text-sm text-slate-300 focus:outline-none focus:border-accent">
-      <option value="all">All statuses</option>
-      <option value="online">Online only</option>
-      <option value="offline">Offline only</option>
-    </select>
-    <button onclick="fetchNodes()" title="Refresh"
-      class="bg-surface-card border border-surface-border rounded-lg px-4 py-2 text-sm text-slate-300 hover:border-accent hover:text-white transition-colors flex items-center gap-2">
-      <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+  <!-- SaaS Metric KPI Highlights (TailAdmin / shadcn style) -->
+  <section class="grid grid-cols-2 lg:grid-cols-4 gap-3.5 mb-7">
+    <!-- Total Fleet -->
+    <div class="bg-zinc-900/50 border border-zinc-800/80 rounded-xl p-4 shadow-sm relative overflow-hidden">
+      <div class="flex items-center justify-between mb-2">
+        <span class="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider">Fleet Nodes</span>
+        <div class="w-6 h-6 rounded-md bg-brand-500/10 text-brand-400 flex items-center justify-center">
+          <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+        </div>
+      </div>
+      <div class="flex items-baseline gap-2">
+        <span id="kpi-total-nodes" class="text-2xl font-bold font-mono text-white">—</span>
+        <span id="kpi-health-rate" class="text-xs font-mono text-emerald-400 font-medium">100% online</span>
+      </div>
+    </div>
+
+    <!-- Average CPU -->
+    <div class="bg-zinc-900/50 border border-zinc-800/80 rounded-xl p-4 shadow-sm relative overflow-hidden">
+      <div class="flex items-center justify-between mb-2">
+        <span class="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider">Cluster CPU Load</span>
+        <div class="w-6 h-6 rounded-md bg-indigo-500/10 text-indigo-400 flex items-center justify-center">
+          <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="4" width="16" height="16" rx="2"/><rect x="9" y="9" width="6" height="6"/><line x1="9" y1="1" x2="9" y2="4"/><line x1="15" y1="1" x2="15" y2="4"/><line x1="9" y1="20" x2="9" y2="23"/><line x1="15" y1="20" x2="15" y2="23"/></svg>
+        </div>
+      </div>
+      <div class="flex items-baseline gap-2">
+        <span id="kpi-avg-cpu" class="text-2xl font-bold font-mono text-white">—</span>
+        <span class="text-xs font-mono text-zinc-500">fleet average</span>
+      </div>
+    </div>
+
+    <!-- Average RAM -->
+    <div class="bg-zinc-900/50 border border-zinc-800/80 rounded-xl p-4 shadow-sm relative overflow-hidden">
+      <div class="flex items-center justify-between mb-2">
+        <span class="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider">Memory Allocation</span>
+        <div class="w-6 h-6 rounded-md bg-cyan-500/10 text-cyan-400 flex items-center justify-center">
+          <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 19v-3"/><path d="M10 19v-3"/><path d="M14 19v-3"/><path d="M18 19v-3"/><rect x="2" y="5" width="20" height="10" rx="2"/></svg>
+        </div>
+      </div>
+      <div class="flex items-baseline gap-2">
+        <span id="kpi-avg-mem" class="text-2xl font-bold font-mono text-white">—</span>
+        <span class="text-xs font-mono text-zinc-500">utilization</span>
+      </div>
+    </div>
+
+    <!-- Active Containers -->
+    <div class="bg-zinc-900/50 border border-zinc-800/80 rounded-xl p-4 shadow-sm relative overflow-hidden">
+      <div class="flex items-center justify-between mb-2">
+        <span class="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider">Docker Workloads</span>
+        <div class="w-6 h-6 rounded-md bg-amber-500/10 text-amber-400 flex items-center justify-center">
+          <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12H2"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></svg>
+        </div>
+      </div>
+      <div class="flex items-baseline gap-2">
+        <span id="kpi-total-containers" class="text-2xl font-bold font-mono text-white">—</span>
+        <span class="text-xs font-mono text-zinc-500">containers running</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- Search & Segmented Filtering Toolbar -->
+  <section class="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 mb-6">
+    <div class="relative flex-1 max-w-lg">
+      <div class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-zinc-500">
+        <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      </div>
+      <input id="search-input" type="text" placeholder="Search by hostname, OS, platform, or node ID…"
+        class="w-full bg-zinc-900/80 border border-zinc-800 rounded-xl pl-10 pr-4 py-2.5 text-sm text-zinc-100 placeholder-zinc-500 focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 transition-all font-sans" />
+    </div>
+
+    <div class="flex items-center gap-2.5">
+      <!-- Status Filter Segmented Control -->
+      <div class="bg-zinc-900/80 border border-zinc-800 rounded-xl p-1 flex items-center">
+        <button type="button" onclick="setStatusFilter('all')" id="filter-btn-all"
+          class="px-3 py-1.5 rounded-lg text-xs font-medium transition-all bg-zinc-800 text-white shadow-sm">All</button>
+        <button type="button" onclick="setStatusFilter('online')" id="filter-btn-online"
+          class="px-3 py-1.5 rounded-lg text-xs font-medium transition-all text-zinc-400 hover:text-white">Online</button>
+        <button type="button" onclick="setStatusFilter('offline')" id="filter-btn-offline"
+          class="px-3 py-1.5 rounded-lg text-xs font-medium transition-all text-zinc-400 hover:text-white">Offline</button>
+      </div>
+      <!-- Hidden select to retain backward compatibility with any programmatic checks -->
+      <select id="status-filter" class="hidden">
+        <option value="all">all</option>
+        <option value="online">online</option>
+        <option value="offline">offline</option>
+      </select>
+
+      <!-- Refresh Action -->
+      <button onclick="fetchNodes()" title="Force Refresh"
+        class="p-2.5 rounded-xl border border-zinc-800 bg-zinc-900/80 hover:bg-zinc-800 text-zinc-300 hover:text-white transition-all flex items-center gap-2 text-xs font-medium">
+        <svg id="refresh-icon" class="w-4 h-4 transition-transform duration-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+        </svg>
+      </button>
+    </div>
+  </section>
+
+  <!-- Skeleton Preloader -->
+  <div id="skeleton-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+    <div class="skeleton h-56 rounded-xl"></div>
+    <div class="skeleton h-56 rounded-xl"></div>
+    <div class="skeleton h-56 rounded-xl"></div>
+  </div>
+
+  <!-- Responsive Node Cards Grid -->
+  <div id="nodes-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4.5 hidden"></div>
+
+  <!-- Empty State -->
+  <div id="empty-state" class="hidden flex flex-col items-center justify-center py-20 text-center border border-dashed border-zinc-800/80 rounded-2xl bg-zinc-900/20 my-6">
+    <div class="w-14 h-14 rounded-2xl bg-zinc-800/60 border border-zinc-700/50 flex items-center justify-center text-zinc-500 mb-4 shadow-inner">
+      <svg class="w-7 h-7" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
+        <rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/>
       </svg>
-      Refresh
-    </button>
-  </div>
-
-  <!-- Skeleton loaders (shown while first fetch pending) -->
-  <div id="skeleton-grid" class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
-    <div class="skeleton h-52 rounded-xl"></div>
-    <div class="skeleton h-52 rounded-xl"></div>
-    <div class="skeleton h-52 rounded-xl"></div>
-  </div>
-
-  <!-- Node cards grid -->
-  <div id="nodes-grid" class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4 hidden"></div>
-
-  <!-- Empty state -->
-  <div id="empty-state" class="hidden flex flex-col items-center justify-center py-24 text-center">
-    <svg class="w-14 h-14 text-slate-700 mb-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2">
-      <rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/>
-    </svg>
-    <p class="text-slate-400 text-base font-medium">No nodes connected yet</p>
-    <p class="text-slate-600 text-sm mt-1">Start a telemetry agent to see nodes appear here.</p>
-    <pre class="mt-4 text-xs text-accent font-mono bg-surface-card border border-surface-border rounded-lg px-4 py-3 text-left">./telemetry-agent --hub-url http://localhost:8080</pre>
+    </div>
+    <h3 class="text-base font-semibold text-zinc-200">No telemetry nodes found</h3>
+    <p class="text-xs text-zinc-500 mt-1 max-w-sm">No connected agents match the current filter criteria, or no nodes have checked in yet.</p>
+    <div class="mt-5 p-3 rounded-xl bg-zinc-950 border border-zinc-800 text-left font-mono text-xs text-brand-400 select-all">
+      ./telemetry-agent --hub-url http://localhost:18080 --interval 5s
+    </div>
   </div>
 
 </main>
 
-<!-- ── Node detail modal ───────────────────────────────────────────────── -->
+<!-- ── Node Details Slide-over / Modal (Inspection & Quick Actions) ──────── -->
 <div id="modal" class="modal-backdrop hidden" onclick="closeModal(event)">
-  <div class="modal" onclick="event.stopPropagation()">
-    <div class="flex items-center justify-between mb-5">
-      <h2 id="modal-title" class="text-lg font-semibold text-white"></h2>
-      <button onclick="closeModal()" class="text-slate-500 hover:text-white transition-colors">
+  <div class="modal-container p-6 sm:p-7 animate-slide-up" onclick="event.stopPropagation()">
+    <!-- Header -->
+    <div class="flex items-start justify-between pb-5 border-b border-zinc-800/90 mb-5">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl bg-brand-500/10 border border-brand-500/20 text-brand-400 flex items-center justify-center">
+          <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/>
+          </svg>
+        </div>
+        <div>
+          <div class="flex items-center gap-2">
+            <h2 id="modal-title" class="text-lg font-bold text-white tracking-tight"></h2>
+            <span id="modal-status-pill" class="text-[10px] font-mono px-2 py-0.5 rounded-full uppercase tracking-wider font-semibold"></span>
+          </div>
+          <p id="modal-subtitle-id" class="text-xs text-zinc-500 font-mono mt-0.5 truncate max-w-md"></p>
+        </div>
+      </div>
+      <button onclick="closeModal()" title="Close (ESC)"
+        class="p-1.5 rounded-lg border border-zinc-800 bg-zinc-900/60 hover:bg-zinc-800 text-zinc-400 hover:text-white transition-colors">
         <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
       </button>
     </div>
 
-    <!-- Meta grid -->
-    <div id="modal-meta" class="grid grid-cols-2 gap-3 mb-6 text-sm"></div>
+    <!-- Metadata Grid (Specs) -->
+    <div id="modal-meta" class="grid grid-cols-2 sm:grid-cols-3 gap-2.5 mb-6"></div>
 
-    <!-- Charts -->
-    <div class="space-y-5">
-      <div>
-        <p class="text-xs text-slate-500 font-medium uppercase tracking-wider mb-2">CPU % — last hour</p>
-        <canvas id="chart-cpu"></canvas>
+    <!-- Real-time Charts Section -->
+    <div class="space-y-4 mb-7">
+      <div class="flex items-center justify-between">
+        <h4 class="text-xs font-semibold uppercase tracking-wider text-zinc-400 flex items-center gap-2">
+          <svg class="w-3.5 h-3.5 text-brand-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+          Resource Utilization History (Last 1 Hour)
+        </h4>
+        <span class="text-[11px] font-mono text-zinc-500">Auto-refresh 5s</span>
       </div>
-      <div>
-        <p class="text-xs text-slate-500 font-medium uppercase tracking-wider mb-2">Memory % — last hour</p>
-        <canvas id="chart-mem"></canvas>
-      </div>
-      <div>
-        <p class="text-xs text-slate-500 font-medium uppercase tracking-wider mb-2">Disk % — last hour</p>
-        <canvas id="chart-disk"></canvas>
+
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+        <!-- CPU Chart -->
+        <div class="bg-zinc-950/60 border border-zinc-800/80 rounded-xl p-3.5">
+          <div class="flex items-center justify-between mb-2 text-xs">
+            <span class="font-medium text-zinc-400">CPU Usage</span>
+            <span id="modal-cur-cpu" class="font-mono text-brand-400 font-semibold">—</span>
+          </div>
+          <canvas id="chart-cpu"></canvas>
+        </div>
+
+        <!-- RAM Chart -->
+        <div class="bg-zinc-950/60 border border-zinc-800/80 rounded-xl p-3.5">
+          <div class="flex items-center justify-between mb-2 text-xs">
+            <span class="font-medium text-zinc-400">RAM Usage</span>
+            <span id="modal-cur-mem" class="font-mono text-sky-400 font-semibold">—</span>
+          </div>
+          <canvas id="chart-mem"></canvas>
+        </div>
+
+        <!-- Disk Chart -->
+        <div class="bg-zinc-950/60 border border-zinc-800/80 rounded-xl p-3.5">
+          <div class="flex items-center justify-between mb-2 text-xs">
+            <span class="font-medium text-zinc-400">Disk Usage</span>
+            <span id="modal-cur-disk" class="font-mono text-amber-400 font-semibold">—</span>
+          </div>
+          <canvas id="chart-disk"></canvas>
+        </div>
       </div>
     </div>
 
-    <!-- Processes Table -->
-    <div class="mt-6 pt-5 border-t border-surface-border">
+    <!-- Top Processes Table -->
+    <div class="mb-7">
       <div class="flex items-center justify-between mb-3">
-        <h4 class="text-xs text-slate-400 font-semibold uppercase tracking-wider flex items-center gap-2">
-          <svg class="w-4 h-4 text-accent" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <rect x="4" y="4" width="16" height="16" rx="2"/><rect x="9" y="9" width="6" height="6"/><line x1="9" y1="1" x2="9" y2="4"/><line x1="15" y1="1" x2="15" y2="4"/><line x1="9" y1="20" x2="9" y2="23"/><line x1="15" y1="20" x2="15" y2="23"/><line x1="20" y1="9" x2="23" y2="9"/><line x1="20" y1="14" x2="23" y2="14"/><line x1="1" y1="9" x2="4" y2="9"/><line x1="1" y1="14" x2="4" y2="14"/>
+        <h4 class="text-xs font-semibold uppercase tracking-wider text-zinc-400 flex items-center gap-2">
+          <svg class="w-3.5 h-3.5 text-brand-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="4" y="4" width="16" height="16" rx="2"/><rect x="9" y="9" width="6" height="6"/>
           </svg>
-          Top Active Processes
+          Top Resource-Consuming Processes
         </h4>
-        <span id="modal-proc-count" class="text-xs text-slate-500 font-mono"></span>
+        <span id="modal-proc-count" class="text-xs text-zinc-500 font-mono"></span>
       </div>
 
-      <div class="overflow-x-auto rounded-lg border border-surface-border bg-surface">
+      <div class="overflow-x-auto rounded-xl border border-zinc-800/80 bg-zinc-950/50">
         <table class="w-full text-left text-xs border-collapse">
           <thead>
-            <tr class="border-b border-surface-border text-slate-400 bg-surface-card/60">
-              <th class="py-2.5 px-3 font-medium">PID</th>
-              <th class="py-2.5 px-3 font-medium">Process Name</th>
-              <th class="py-2.5 px-3 font-medium text-right">CPU %</th>
-              <th class="py-2.5 px-3 font-medium text-right">Memory (MB)</th>
-              <th class="py-2.5 px-3 font-medium text-right">Memory %</th>
+            <tr class="border-b border-zinc-800 text-zinc-400 bg-zinc-900/60 font-medium">
+              <th class="py-2.5 px-3.5">PID</th>
+              <th class="py-2.5 px-3.5">Process Name</th>
+              <th class="py-2.5 px-3.5 text-right">CPU %</th>
+              <th class="py-2.5 px-3.5 text-right">RSS (MB)</th>
+              <th class="py-2.5 px-3.5 text-right">Memory %</th>
             </tr>
           </thead>
-          <tbody id="modal-proc-table" class="divide-y divide-surface-border/50 text-slate-300">
-            <!-- populated dynamically -->
-          </tbody>
+          <tbody id="modal-proc-table" class="divide-y divide-zinc-800/40 text-zinc-300 font-mono"></tbody>
         </table>
       </div>
     </div>
 
     <!-- Docker Containers Table -->
-    <div class="mt-6 pt-5 border-t border-surface-border">
+    <div class="mb-7">
       <div class="flex items-center justify-between mb-3">
-        <h4 class="text-xs text-slate-400 font-semibold uppercase tracking-wider flex items-center gap-2">
-          <svg class="w-4 h-4 text-accent" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M22 12H2"/>
-            <path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/>
-            <line x1="6" y1="16" x2="6.01" y2="16"/>
-            <line x1="10" y1="16" x2="10.01" y2="16"/>
+        <h4 class="text-xs font-semibold uppercase tracking-wider text-zinc-400 flex items-center gap-2">
+          <svg class="w-3.5 h-3.5 text-brand-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M22 12H2"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/>
           </svg>
-          Docker Containers
+          Docker Containers Telemetry
         </h4>
-        <span id="modal-container-count" class="text-xs text-slate-500 font-mono"></span>
+        <span id="modal-container-count" class="text-xs text-zinc-500 font-mono"></span>
       </div>
 
-      <div class="overflow-x-auto rounded-lg border border-surface-border bg-surface">
+      <div class="overflow-x-auto rounded-xl border border-zinc-800/80 bg-zinc-950/50">
         <table class="w-full text-left text-xs border-collapse">
           <thead>
-            <tr class="border-b border-surface-border text-slate-400 bg-surface-card/60">
-              <th class="py-2.5 px-3 font-medium">Container Name</th>
-              <th class="py-2.5 px-3 font-medium">Image</th>
-              <th class="py-2.5 px-3 font-medium">Status</th>
-              <th class="py-2.5 px-3 font-medium text-right">CPU %</th>
-              <th class="py-2.5 px-3 font-medium text-right">Memory Usage / Limit</th>
-              <th class="py-2.5 px-3 font-medium text-right">Action</th>
+            <tr class="border-b border-zinc-800 text-zinc-400 bg-zinc-900/60 font-medium">
+              <th class="py-2.5 px-3.5">Container</th>
+              <th class="py-2.5 px-3.5">Image Tag</th>
+              <th class="py-2.5 px-3.5">Status</th>
+              <th class="py-2.5 px-3.5 text-right">CPU %</th>
+              <th class="py-2.5 px-3.5 text-right">Memory</th>
+              <th class="py-2.5 px-3.5 text-right">Action</th>
             </tr>
           </thead>
-          <tbody id="modal-container-table" class="divide-y divide-surface-border/50 text-slate-300">
-            <!-- populated dynamically -->
-          </tbody>
+          <tbody id="modal-container-table" class="divide-y divide-zinc-800/40 text-zinc-300"></tbody>
         </table>
       </div>
     </div>
 
     <!-- ── Quick Diagnostic & Remediation Actions ──────────────────────── -->
-    <div class="mt-6 pt-5 border-t border-surface-border">
+    <div class="pt-5 border-t border-zinc-800/90">
       <div class="flex items-center justify-between mb-3">
-        <h4 class="text-xs text-slate-400 font-semibold uppercase tracking-wider flex items-center gap-2">
-          <svg class="w-4 h-4 text-accent" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <h4 class="text-xs font-semibold uppercase tracking-wider text-zinc-400 flex items-center gap-2">
+          <svg class="w-3.5 h-3.5 text-brand-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
           </svg>
-          Quick Diagnostic & Remediation Actions
+          Quick Diagnostic &amp; Remediation Toolbox
         </h4>
-        <span class="text-[11px] text-slate-500 font-mono">Whitelisted &amp; Isolated</span>
+        <span class="text-[10px] font-mono px-2 py-0.5 rounded bg-zinc-800 text-zinc-400 uppercase tracking-widest border border-zinc-700/50">Whitelisted</span>
       </div>
 
-      <!-- Action Buttons -->
+      <!-- Action Trigger Buttons -->
       <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5 mb-4">
         <!-- Flush DNS -->
         <button id="btn-action-flush_dns" onclick="runNodeAction('flush_dns')"
-          class="bg-surface hover:bg-surface-card border border-surface-border hover:border-accent text-slate-200 px-3.5 py-2.5 rounded-lg flex items-center justify-between transition-colors group">
-          <div class="flex items-center gap-2.5">
-            <span class="text-amber-400 text-base">⚡</span>
-            <div class="text-left">
-              <span class="block text-xs font-medium text-white group-hover:text-accent">Flush DNS Cache</span>
-              <span class="block text-[10px] text-slate-500">ipconfig / resolvectl</span>
+          class="bg-zinc-900/90 hover:bg-zinc-850 border border-zinc-800 hover:border-brand-500/50 rounded-xl p-3.5 flex items-center justify-between transition-all group shadow-sm text-left">
+          <div class="flex items-center gap-3">
+            <div class="w-8 h-8 rounded-lg bg-amber-500/10 text-amber-400 flex items-center justify-center text-sm">⚡</div>
+            <div>
+              <span class="block text-xs font-semibold text-zinc-200 group-hover:text-brand-300">Flush DNS</span>
+              <span class="block text-[10px] text-zinc-500 font-mono">Clear OS DNS cache</span>
             </div>
           </div>
-          <span class="spinner hidden w-3.5 h-3.5 border-2 border-accent border-t-transparent rounded-full animate-spin"></span>
+          <span class="spinner hidden w-4 h-4 border-2 border-brand-400 border-t-transparent rounded-full animate-spin"></span>
         </button>
 
         <!-- Clean Temp -->
         <button id="btn-action-clean_temp" onclick="runNodeAction('clean_temp')"
-          class="bg-surface hover:bg-surface-card border border-surface-border hover:border-accent text-slate-200 px-3.5 py-2.5 rounded-lg flex items-center justify-between transition-colors group">
-          <div class="flex items-center gap-2.5">
-            <span class="text-emerald-400 text-base">🧹</span>
-            <div class="text-left">
-              <span class="block text-xs font-medium text-white group-hover:text-accent">Clean Temp Files</span>
-              <span class="block text-[10px] text-slate-500">Purge OS junk files</span>
+          class="bg-zinc-900/90 hover:bg-zinc-850 border border-zinc-800 hover:border-brand-500/50 rounded-xl p-3.5 flex items-center justify-between transition-all group shadow-sm text-left">
+          <div class="flex items-center gap-3">
+            <div class="w-8 h-8 rounded-lg bg-emerald-500/10 text-emerald-400 flex items-center justify-center text-sm">🧹</div>
+            <div>
+              <span class="block text-xs font-semibold text-zinc-200 group-hover:text-brand-300">Clean Temp</span>
+              <span class="block text-[10px] text-zinc-500 font-mono">Purge junk temp files</span>
             </div>
           </div>
-          <span class="spinner hidden w-3.5 h-3.5 border-2 border-accent border-t-transparent rounded-full animate-spin"></span>
+          <span class="spinner hidden w-4 h-4 border-2 border-brand-400 border-t-transparent rounded-full animate-spin"></span>
         </button>
 
         <!-- Ping Gateway -->
         <button id="btn-action-ping_gateway" onclick="runNodeAction('ping_gateway')"
-          class="bg-surface hover:bg-surface-card border border-surface-border hover:border-accent text-slate-200 px-3.5 py-2.5 rounded-lg flex items-center justify-between transition-colors group">
-          <div class="flex items-center gap-2.5">
-            <span class="text-cyan-400 text-base">🌐</span>
-            <div class="text-left">
-              <span class="block text-xs font-medium text-white group-hover:text-accent">Ping Diagnostic</span>
-              <span class="block text-[10px] text-slate-500">4-packet ping 1.1.1.1</span>
+          class="bg-zinc-900/90 hover:bg-zinc-850 border border-zinc-800 hover:border-brand-500/50 rounded-xl p-3.5 flex items-center justify-between transition-all group shadow-sm text-left">
+          <div class="flex items-center gap-3">
+            <div class="w-8 h-8 rounded-lg bg-sky-500/10 text-sky-400 flex items-center justify-center text-sm">🌐</div>
+            <div>
+              <span class="block text-xs font-semibold text-zinc-200 group-hover:text-brand-300">Ping Diagnostic</span>
+              <span class="block text-[10px] text-zinc-500 font-mono">4-packet ping 1.1.1.1</span>
             </div>
           </div>
-          <span class="spinner hidden w-3.5 h-3.5 border-2 border-accent border-t-transparent rounded-full animate-spin"></span>
+          <span class="spinner hidden w-4 h-4 border-2 border-brand-400 border-t-transparent rounded-full animate-spin"></span>
         </button>
       </div>
 
-      <!-- Terminal Console Box -->
-      <div id="action-console-container" class="rounded-lg border border-surface-border bg-[#0d1117] overflow-hidden">
-        <div class="flex items-center justify-between px-3.5 py-2 border-b border-[#2a2d3e] bg-[#161b22]">
+      <!-- Developer Terminal Console Window -->
+      <div id="action-console-container" class="rounded-xl border border-zinc-800 bg-black/95 overflow-hidden shadow-2xl">
+        <!-- Console Window Header -->
+        <div class="flex items-center justify-between px-3.5 py-2.5 border-b border-zinc-800/80 bg-zinc-950/80">
           <div class="flex items-center gap-2">
-            <span class="w-2.5 h-2.5 rounded-full bg-red-500/80 inline-block"></span>
-            <span class="w-2.5 h-2.5 rounded-full bg-yellow-500/80 inline-block"></span>
-            <span class="w-2.5 h-2.5 rounded-full bg-green-500/80 inline-block"></span>
-            <span class="text-[11px] font-mono text-slate-400 ml-1.5 flex items-center gap-1.5">
-              <span>Terminal Console</span>
-              <span id="console-action-name" class="text-accent font-semibold"></span>
+            <span class="w-2.5 h-2.5 rounded-full bg-rose-500/80 inline-block"></span>
+            <span class="w-2.5 h-2.5 rounded-full bg-amber-500/80 inline-block"></span>
+            <span class="w-2.5 h-2.5 rounded-full bg-emerald-500/80 inline-block"></span>
+            <span class="text-[11px] font-mono text-zinc-400 ml-2 flex items-center gap-1.5">
+              <span>console:</span>
+              <span id="console-action-name" class="text-brand-400 font-semibold font-mono"></span>
             </span>
           </div>
-          <div class="flex items-center gap-2">
-            <span id="console-status-badge" class="hidden text-[10px] font-mono font-medium px-2 py-0.5 rounded border"></span>
-            <span id="console-duration-badge" class="hidden text-[10px] font-mono text-slate-400"></span>
-            <button onclick="clearActionConsole()" title="Clear Console" class="text-slate-500 hover:text-slate-300 transition-colors p-1 text-xs font-mono">
-              Clear
-            </button>
+          <div class="flex items-center gap-2 font-mono">
+            <span id="console-status-badge" class="hidden text-[10px] font-medium px-2 py-0.5 rounded border"></span>
+            <span id="console-duration-badge" class="hidden text-[10px] text-zinc-500"></span>
+            <button onclick="clearActionConsole()" class="text-zinc-500 hover:text-zinc-300 transition-colors text-[11px] px-1.5 py-0.5 rounded hover:bg-zinc-800">Clear</button>
           </div>
         </div>
-        <pre id="action-console-output" class="p-3.5 font-mono text-xs text-slate-300 leading-relaxed overflow-x-auto max-h-52 overflow-y-auto whitespace-pre-wrap selection:bg-accent/40 selection:text-white">Ready. Select an action above to execute remote remediation.</pre>
+        <!-- Console Output Area -->
+        <pre id="action-console-output" class="p-4 font-mono text-xs text-zinc-300 leading-relaxed overflow-x-auto max-h-56 overflow-y-auto whitespace-pre-wrap selection:bg-brand-500/40">Ready. Select an action above to trigger remote execution.</pre>
       </div>
     </div>
   </div>
 </div>
 
-<!-- ── Alerts & Notifications modal ────────────────────────────────────── -->
+<!-- ── Modern Alerting & Webhooks Modal (shadcn style) ──────────────────── -->
 <div id="alert-modal" class="modal-backdrop hidden" onclick="closeAlertModal(event)">
-  <div class="modal" onclick="event.stopPropagation()">
-    <div class="flex items-center justify-between mb-5">
-      <div class="flex items-center gap-2.5">
-        <div class="p-2 bg-accent/10 border border-accent/30 rounded-lg text-accent">
+  <div class="modal-container p-6 sm:p-7 max-w-lg animate-slide-up" onclick="event.stopPropagation()">
+    <div class="flex items-start justify-between pb-4 border-b border-zinc-800 mb-5">
+      <div class="flex items-center gap-3">
+        <div class="w-9 h-9 rounded-xl bg-brand-500/10 border border-brand-500/20 text-brand-400 flex items-center justify-center">
           <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
-            <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+            <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/>
           </svg>
         </div>
         <div>
-          <h2 class="text-lg font-semibold text-white">Alerts & Notifications</h2>
-          <p class="text-xs text-slate-400">Configure threshold rules and Discord/Slack webhook dispatching.</p>
+          <h2 class="text-base font-bold text-white tracking-tight">Alerts &amp; Webhook Rules</h2>
+          <p class="text-xs text-zinc-500">Automated incident notifications for Discord &amp; Slack.</p>
         </div>
       </div>
-      <button onclick="closeAlertModal()" class="text-slate-500 hover:text-white transition-colors">
+      <button onclick="closeAlertModal()" class="text-zinc-500 hover:text-white transition-colors p-1">
         <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
       </button>
     </div>
 
     <form id="alert-form" onsubmit="saveAlertSettings(event)" class="space-y-4">
-      <!-- Enable toggle -->
-      <div class="flex items-center justify-between bg-surface border border-surface-border rounded-lg p-3">
+      <!-- Enable Toggle Switch (shadcn style) -->
+      <div class="flex items-center justify-between p-3.5 rounded-xl border border-zinc-800 bg-zinc-950/60">
         <div>
-          <label class="text-sm font-medium text-white block">Enable Alert Notifications</label>
-          <span class="text-xs text-slate-500">Send webhook notifications when metrics breach thresholds</span>
+          <label class="text-xs font-semibold text-zinc-200 block">Enable Incident Alerting</label>
+          <span class="text-[11px] text-zinc-500">Evaluate node thresholds on each telemetry ingest</span>
         </div>
         <label class="relative inline-flex items-center cursor-pointer">
           <input type="checkbox" id="alert-enabled" class="sr-only peer" />
-          <div class="w-11 h-6 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:width-5 after:transition-all peer-checked:bg-accent"></div>
+          <div class="w-11 h-6 bg-zinc-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-zinc-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-brand-500"></div>
         </label>
       </div>
 
-      <!-- Webhook URL input -->
+      <!-- Webhook Destination Input -->
       <div>
-        <label class="block text-xs font-medium text-slate-400 uppercase tracking-wider mb-1.5">Webhook URL (Discord / Slack)</label>
-        <input id="alert-webhook-url" type="url" placeholder="https://discord.com/api/webhooks/..."
-          class="w-full bg-surface border border-surface-border rounded-lg px-3.5 py-2 text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-accent font-mono transition-colors" />
+        <label class="block text-xs font-semibold text-zinc-400 mb-1.5 uppercase tracking-wider">Webhook URL (Discord / Slack)</label>
+        <div class="relative">
+          <input id="alert-webhook-url" type="url" placeholder="https://discord.com/api/webhooks/..."
+            class="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3.5 py-2.5 text-xs font-mono text-zinc-200 placeholder-zinc-600 focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 transition-all" />
+        </div>
       </div>
 
-      <!-- Thresholds grid -->
-      <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
+      <!-- Numeric Threshold Sliders/Inputs -->
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-1">
         <!-- CPU Threshold -->
-        <div class="bg-surface border border-surface-border rounded-lg p-3">
-          <label class="block text-xs text-slate-400 font-medium mb-1">CPU Threshold (%)</label>
-          <input id="alert-cpu-thresh" type="number" min="1" max="100" step="1" value="90"
-            class="w-full bg-surface-card border border-surface-border rounded-md px-2.5 py-1.5 text-sm font-mono text-white focus:outline-none focus:border-accent" />
-          <span class="text-[11px] text-slate-500 mt-1 block">Default: 90%</span>
+        <div class="p-3 rounded-xl border border-zinc-800 bg-zinc-950/60">
+          <div class="flex justify-between items-center mb-1">
+            <label class="text-[11px] font-semibold text-zinc-400">CPU Alert</label>
+            <span class="text-[11px] font-mono text-brand-400 font-bold" id="label-cpu-thresh">90%</span>
+          </div>
+          <input id="alert-cpu-thresh" type="number" min="1" max="100" value="90" oninput="document.getElementById('label-cpu-thresh').textContent = this.value + '%'"
+            class="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-2.5 py-1.5 text-xs font-mono text-white focus:outline-none focus:border-brand-500" />
         </div>
 
         <!-- Memory Threshold -->
-        <div class="bg-surface border border-surface-border rounded-lg p-3">
-          <label class="block text-xs text-slate-400 font-medium mb-1">Memory Threshold (%)</label>
-          <input id="alert-mem-thresh" type="number" min="1" max="100" step="1" value="90"
-            class="w-full bg-surface-card border border-surface-border rounded-md px-2.5 py-1.5 text-sm font-mono text-white focus:outline-none focus:border-accent" />
-          <span class="text-[11px] text-slate-500 mt-1 block">Default: 90%</span>
+        <div class="p-3 rounded-xl border border-zinc-800 bg-zinc-950/60">
+          <div class="flex justify-between items-center mb-1">
+            <label class="text-[11px] font-semibold text-zinc-400">RAM Alert</label>
+            <span class="text-[11px] font-mono text-sky-400 font-bold" id="label-mem-thresh">90%</span>
+          </div>
+          <input id="alert-mem-thresh" type="number" min="1" max="100" value="90" oninput="document.getElementById('label-mem-thresh').textContent = this.value + '%'"
+            class="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-2.5 py-1.5 text-xs font-mono text-white focus:outline-none focus:border-brand-500" />
         </div>
 
         <!-- Disk Threshold -->
-        <div class="bg-surface border border-surface-border rounded-lg p-3">
-          <label class="block text-xs text-slate-400 font-medium mb-1">Disk Threshold (%)</label>
-          <input id="alert-disk-thresh" type="number" min="1" max="100" step="1" value="90"
-            class="w-full bg-surface-card border border-surface-border rounded-md px-2.5 py-1.5 text-sm font-mono text-white focus:outline-none focus:border-accent" />
-          <span class="text-[11px] text-slate-500 mt-1 block">Default: 90%</span>
+        <div class="p-3 rounded-xl border border-zinc-800 bg-zinc-950/60">
+          <div class="flex justify-between items-center mb-1">
+            <label class="text-[11px] font-semibold text-zinc-400">Disk Alert</label>
+            <span class="text-[11px] font-mono text-amber-400 font-bold" id="label-disk-thresh">90%</span>
+          </div>
+          <input id="alert-disk-thresh" type="number" min="1" max="100" value="90" oninput="document.getElementById('label-disk-thresh').textContent = this.value + '%'"
+            class="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-2.5 py-1.5 text-xs font-mono text-white focus:outline-none focus:border-brand-500" />
         </div>
       </div>
 
-      <!-- Action buttons -->
-      <div class="flex items-center justify-between pt-4 border-t border-surface-border">
+      <!-- Action Buttons -->
+      <div class="flex items-center justify-between pt-4 border-t border-zinc-800 mt-5">
         <button type="button" onclick="testAlertNotification()" id="btn-test-alert"
-          class="bg-surface border border-surface-border hover:border-slate-500 hover:text-white rounded-lg px-4 py-2 text-xs font-medium text-slate-300 transition-colors flex items-center gap-1.5">
-          <svg class="w-3.5 h-3.5 text-accent" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <polygon points="5 3 19 12 5 21 5 3"/>
-          </svg>
+          class="px-3.5 py-2 rounded-xl border border-zinc-800 bg-zinc-900 hover:bg-zinc-800 hover:border-zinc-700 text-xs font-medium text-zinc-300 transition-all flex items-center gap-2">
+          <svg class="w-3.5 h-3.5 text-brand-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
           Send Test Notification
         </button>
 
         <div class="flex items-center gap-2">
           <button type="button" onclick="closeAlertModal()"
-            class="bg-surface-card border border-surface-border rounded-lg px-3.5 py-2 text-xs font-medium text-slate-400 hover:text-white transition-colors">
-            Cancel
-          </button>
+            class="px-3.5 py-2 rounded-xl text-xs font-medium text-zinc-400 hover:text-white transition-colors">Cancel</button>
           <button type="submit" id="btn-save-alert"
-            class="bg-accent hover:bg-accent/90 text-white rounded-lg px-4 py-2 text-xs font-semibold shadow-sm transition-colors">
-            Save Settings
-          </button>
+            class="px-4 py-2 rounded-xl bg-brand-500 hover:bg-brand-600 text-white text-xs font-semibold shadow-glow transition-all">Save Settings</button>
         </div>
       </div>
     </form>
   </div>
 </div>
 
-<!-- ── Toast notifications ─────────────────────────────────────────────── -->
-<div id="toast-container" class="fixed bottom-4 right-4 flex flex-col gap-2 z-50"></div>
+<!-- ── Floating Toast Notifications (Sonner / shadcn style) ───────────── -->
+<div id="toast-container" class="fixed bottom-5 right-5 flex flex-col gap-2 z-50 pointer-events-none"></div>
 
-<!-- ── JavaScript ─────────────────────────────────────────────────────── -->
+<!-- ── Client Application Logic ─────────────────────────────────────────── -->
 <script>
 /* ================================================================
-   State
+   Application State
    ================================================================ */
-let allNodes     = [];
-let charts       = {};
-let sseSource    = null;
+let allNodes = [];
+let charts = {};
+let sseSource = null;
 let activeNodeId = null;
+let currentFilter = 'all';
 
-const POLL_INTERVAL = 5000; // fallback polling interval ms
-const BAR_OK   = '#22c55e';
-const BAR_WARN = '#f59e0b';
-const BAR_CRIT = '#ef4444';
+const POLL_INTERVAL = 4000;
 const CHART_DEFAULTS = {
   responsive: true,
   maintainAspectRatio: false,
-  animation: { duration: 400 },
-  plugins: { legend: { display: false }, tooltip: {
-    backgroundColor: '#1a1d27',
-    borderColor: '#2a2d3e',
-    borderWidth: 1,
-    titleColor: '#94a3b8',
-    bodyColor: '#e2e8f0',
-    callbacks: { label: ctx => ` ${ctx.parsed.y.toFixed(1)} %` }
-  }},
+  animation: { duration: 450, easing: 'easeOutQuart' },
+  plugins: {
+    legend: { display: false },
+    tooltip: {
+      backgroundColor: 'rgba(9, 9, 11, 0.95)',
+      borderColor: 'rgba(39, 39, 42, 0.9)',
+      borderWidth: 1,
+      padding: 10,
+      cornerRadius: 8,
+      titleFont: { size: 11, family: 'Inter' },
+      bodyFont: { size: 12, family: 'JetBrains Mono', weight: 'bold' },
+      callbacks: {
+        label: ctx => ` ${ctx.parsed.y.toFixed(1)} %`
+      }
+    }
+  },
   scales: {
     x: { display: false },
     y: {
       min: 0, max: 100,
-      grid: { color: '#2a2d3e' },
-      ticks: { color: '#64748b', font: { size: 10 }, callback: v => v + '%' }
+      grid: {
+        color: 'rgba(255, 255, 255, 0.04)',
+        borderDash: [4, 4]
+      },
+      ticks: {
+        color: '#71717a',
+        font: { size: 10, family: 'JetBrains Mono' },
+        callback: v => v + '%'
+      }
     }
   }
 };
 
 /* ================================================================
-   SSE – real-time push
+   SSE – Real-Time Push Stream
    ================================================================ */
 function connectSSE() {
   if (sseSource) return;
   sseSource = new EventSource('/api/v1/events');
   sseSource.addEventListener('nodes', e => {
-    try { renderNodes(JSON.parse(e.data)); } catch(_) {}
+    try {
+      renderNodes(JSON.parse(e.data));
+    } catch (_) {}
   });
   sseSource.onerror = () => {
     sseSource.close();
     sseSource = null;
-    // Fall back to polling until SSE reconnects.
     setTimeout(connectSSE, 5000);
   };
 }
 
 /* ================================================================
-   REST fetch (used on load and manual refresh)
+   REST Fetcher & Data Sync
    ================================================================ */
 async function fetchNodes() {
+  const icon = document.getElementById('refresh-icon');
+  if (icon) icon.classList.add('rotate-180');
   try {
     const res = await fetch('/api/v1/nodes');
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     renderNodes(await res.json());
-    flashIndicator('#22c55e');
-  } catch(e) {
-    flashIndicator('#ef4444');
+    flashIndicator('#10b981');
+  } catch (e) {
+    flashIndicator('#f43f5e');
     toast('Could not reach hub: ' + e.message, 'error');
+  } finally {
+    if (icon) setTimeout(() => icon.classList.remove('rotate-180'), 500);
   }
 }
 
 /* ================================================================
-   Render node grid
+   Render Nodes & Fleet KPIs
    ================================================================ */
 function renderNodes(nodes) {
   allNodes = Array.isArray(nodes) ? nodes : [];
   applyFilters();
-  updateNavStats();
+  updateClusterKPIs();
   document.getElementById('skeleton-grid').classList.add('hidden');
 
+  // If node detail modal is open, re-render its tables live
   if (activeNodeId) {
     const activeNode = allNodes.find(x => x.node_id === activeNodeId);
     if (activeNode) {
       renderModalProcesses(activeNode);
       renderModalContainers(activeNode);
+      updateModalLiveBadges(activeNode);
     }
   }
 }
 
+function updateClusterKPIs() {
+  const total = allNodes.length;
+  const online = allNodes.filter(n => n.status === 'online').length;
+  const offline = total - online;
+
+  // Header Nav counters
+  document.getElementById('nav-total').textContent = total;
+  document.getElementById('nav-online').textContent = `${online} online`;
+  document.getElementById('nav-offline').textContent = `${offline} offline`;
+
+  // Top Metric Cards
+  document.getElementById('kpi-total-nodes').textContent = total;
+  const healthRate = total > 0 ? Math.round((online / total) * 100) : 100;
+  document.getElementById('kpi-health-rate').textContent = `${healthRate}% healthy`;
+
+  const onlineNodes = allNodes.filter(n => n.status === 'online');
+  if (onlineNodes.length > 0) {
+    const avgCPU = onlineNodes.reduce((acc, n) => acc + (n.cpu_percent || 0), 0) / onlineNodes.length;
+    const avgMem = onlineNodes.reduce((acc, n) => acc + (n.mem_percent || 0), 0) / onlineNodes.length;
+    document.getElementById('kpi-avg-cpu').textContent = `${avgCPU.toFixed(1)}%`;
+    document.getElementById('kpi-avg-mem').textContent = `${avgMem.toFixed(1)}%`;
+  } else {
+    document.getElementById('kpi-avg-cpu').textContent = '0.0%';
+    document.getElementById('kpi-avg-mem').textContent = '0.0%';
+  }
+
+  // Count total containers
+  let totalContainers = 0;
+  allNodes.forEach(n => {
+    if (Array.isArray(n.containers)) {
+      totalContainers += n.containers.filter(c => (c.status || '').toLowerCase() === 'running').length;
+    }
+  });
+  document.getElementById('kpi-total-containers').textContent = totalContainers;
+}
+
+function setStatusFilter(filter) {
+  currentFilter = filter;
+  document.getElementById('status-filter').value = filter;
+
+  ['all', 'online', 'offline'].forEach(f => {
+    const btn = document.getElementById(`filter-btn-${f}`);
+    if (!btn) return;
+    if (f === filter) {
+      btn.className = 'px-3 py-1.5 rounded-lg text-xs font-medium transition-all bg-zinc-800 text-white shadow-sm';
+    } else {
+      btn.className = 'px-3 py-1.5 rounded-lg text-xs font-medium transition-all text-zinc-400 hover:text-white';
+    }
+  });
+
+  applyFilters();
+}
+
 function applyFilters() {
-  const query  = document.getElementById('search-input').value.toLowerCase();
-  const status = document.getElementById('status-filter').value;
+  const query = document.getElementById('search-input').value.toLowerCase().trim();
+  const status = currentFilter;
 
   const filtered = allNodes.filter(n => {
     const matchText = !query ||
       n.hostname.toLowerCase().includes(query) ||
-      n.os.toLowerCase().includes(query) ||
-      n.platform.toLowerCase().includes(query) ||
+      (n.os || '').toLowerCase().includes(query) ||
+      (n.platform || '').toLowerCase().includes(query) ||
       n.node_id.toLowerCase().includes(query);
     const matchStatus = status === 'all' || n.status === status;
     return matchText && matchStatus;
@@ -514,88 +810,85 @@ function applyFilters() {
   } else {
     empty.classList.add('hidden');
     grid.classList.remove('hidden');
-    grid.innerHTML = filtered.map(nodeCard).join('');
+    grid.innerHTML = filtered.map(nodeCardTemplate).join('');
   }
 }
 
-function nodeCard(n) {
-  const statusDot = n.status === 'online'
-    ? '<span class="pulse-dot pulse-online"></span>'
-    : '<span class="pulse-dot pulse-offline"></span>';
+function nodeCardTemplate(n) {
+  const isOnline = n.status === 'online';
+  const statusBadge = isOnline
+    ? `<span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-mono font-semibold bg-emerald-950/60 text-emerald-400 border border-emerald-800/40 shadow-glow-ok">
+         <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>ONLINE
+       </span>`
+    : `<span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-mono font-semibold bg-zinc-900 text-zinc-400 border border-zinc-800">
+         <span class="w-1.5 h-1.5 rounded-full bg-zinc-600"></span>OFFLINE
+       </span>`;
 
-  const lastSeen = n.last_seen
-    ? relativeTime(new Date(n.last_seen))
-    : '—';
-
+  const lastSeen = n.last_seen ? relativeTime(new Date(n.last_seen)) : '—';
   const bytesRx = fmtBytes(n.net_rx_bytes);
   const bytesTx = fmtBytes(n.net_tx_bytes);
 
   return `
   <article
-    class="bg-surface-card border border-surface-border rounded-xl p-5 cursor-pointer card-hover"
+    class="card-glass rounded-xl p-5 cursor-pointer flex flex-col justify-between group"
     onclick="openModal('${escHtml(n.node_id)}')"
-    title="Click for detailed charts"
+    title="Click to view charts, processes, and remote actions"
   >
-    <!-- Card header -->
-    <div class="flex items-start justify-between mb-4">
-      <div class="min-w-0">
-        <div class="flex items-center gap-2">
-          ${statusDot}
-          <h3 class="font-semibold text-white text-sm truncate max-w-[180px]">${escHtml(n.hostname)}</h3>
+    <!-- Card Header -->
+    <div>
+      <div class="flex items-start justify-between gap-3 mb-3.5">
+        <div class="min-w-0">
+          <div class="flex items-center gap-2">
+            <h3 class="font-semibold text-white text-sm truncate group-hover:text-brand-400 transition-colors">${escHtml(n.hostname)}</h3>
+          </div>
+          <p class="text-xs text-zinc-500 font-mono truncate mt-0.5">${escHtml(n.node_id)}</p>
         </div>
-        <p class="text-xs text-slate-500 mt-0.5 font-mono truncate">${escHtml(n.node_id)}</p>
+        <div class="flex flex-col items-end gap-1 shrink-0">
+          ${statusBadge}
+          <span class="text-[10px] font-mono text-zinc-500 uppercase">${escHtml(n.os)}/${escHtml(n.platform || 'x64')}</span>
+        </div>
       </div>
-      <div class="flex flex-col items-end gap-1 shrink-0">
-        <span class="text-xs px-2 py-0.5 rounded-full font-medium ${n.status === 'online' ? 'bg-green-900/50 text-ok' : 'bg-slate-800 text-slate-400'}">
-          ${n.status}
-        </span>
-        <span class="text-xs text-slate-600">${escHtml(n.os)}/${escHtml(n.platform)}</span>
+
+      <!-- Resource Bars -->
+      <div class="space-y-3 pt-1">
+        ${renderResourceBar('CPU', n.cpu_percent)}
+        ${renderResourceBar('RAM', n.mem_percent)}
+        ${renderResourceBar('Disk', n.disk_percent)}
       </div>
     </div>
 
-    <!-- Stat bars -->
-    <div class="space-y-2.5">
-      ${statBar('CPU',  n.cpu_percent)}
-      ${statBar('RAM',  n.mem_percent)}
-      ${statBar('Disk', n.disk_percent)}
-    </div>
-
-    <!-- Footer -->
-    <div class="mt-4 flex items-center justify-between text-xs text-slate-600">
-      <span>↓ ${bytesRx} / ↑ ${bytesTx}</span>
-      <span>${lastSeen}</span>
+    <!-- Card Footer -->
+    <div class="mt-4 pt-3.5 border-t border-zinc-800/60 flex items-center justify-between text-xs font-mono text-zinc-500">
+      <div class="flex items-center gap-1.5" title="Network Throughput (Total)">
+        <span class="text-zinc-600">↓</span><span>${bytesRx}</span>
+        <span class="text-zinc-700">·</span>
+        <span class="text-zinc-600">↑</span><span>${bytesTx}</span>
+      </div>
+      <div class="flex items-center gap-1 text-zinc-400">
+        <span>${lastSeen}</span>
+        <svg class="w-3.5 h-3.5 opacity-0 group-hover:opacity-100 transition-opacity text-brand-400 ml-1" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+      </div>
     </div>
   </article>`;
 }
 
-function statBar(label, pct) {
-  const p    = Math.min(100, Math.max(0, pct || 0));
-  const color = p > 85 ? BAR_CRIT : p > 65 ? BAR_WARN : BAR_OK;
+function renderResourceBar(label, pct) {
+  const val = Math.min(100, Math.max(0, pct || 0));
+  const color = val > 85 ? '#f43f5e' : val > 65 ? '#f59e0b' : '#6366f1';
   return `
   <div>
-    <div class="flex justify-between items-center mb-1">
-      <span class="text-xs text-slate-500">${label}</span>
-      <span class="text-xs font-mono font-medium" style="color:${color}">${p.toFixed(1)}%</span>
+    <div class="flex justify-between items-center mb-1 text-xs">
+      <span class="text-[11px] font-medium text-zinc-400 uppercase tracking-wider">${label}</span>
+      <span class="font-mono font-semibold" style="color: ${color}">${val.toFixed(1)}%</span>
     </div>
     <div class="stat-bar-track">
-      <div class="stat-bar-fill" style="width:${p}%;background:${color}"></div>
+      <div class="stat-bar-fill" style="width: ${val}%; background-color: ${color};"></div>
     </div>
   </div>`;
 }
 
 /* ================================================================
-   Nav stats
-   ================================================================ */
-function updateNavStats() {
-  const online  = allNodes.filter(n => n.status === 'online').length;
-  const offline = allNodes.length - online;
-  document.getElementById('nav-total').textContent   = allNodes.length;
-  document.getElementById('nav-online').textContent  = `${online} online`;
-  document.getElementById('nav-offline').textContent = `${offline} offline`;
-}
-
-/* ================================================================
-   Modal – node detail + charts
+   Modal — Details, Charts, Processes & Containers
    ================================================================ */
 async function openModal(nodeId) {
   activeNodeId = nodeId;
@@ -603,42 +896,65 @@ async function openModal(nodeId) {
   if (!n) return;
 
   document.getElementById('modal-title').textContent = n.hostname;
+  document.getElementById('modal-subtitle-id').textContent = `Node ID: ${n.node_id}`;
 
-  const meta = [
-    ['Node ID',    n.node_id],
-    ['OS',         `${n.os} / ${n.platform}`],
-    ['Kernel',     n.kernel_version || '—'],
-    ['Agent',      n.agent_version  || '—'],
-    ['Status',     n.status],
-    ['Last seen',  n.last_seen ? new Date(n.last_seen).toLocaleString() : '—'],
+  updateModalLiveBadges(n);
+
+  const metaItems = [
+    ['Operating System', `${n.os} / ${n.platform || 'amd64'}`],
+    ['Kernel Version',   n.kernel_version || '—'],
+    ['Agent Version',    n.agent_version || '—'],
+    ['Status State',     n.status.toUpperCase()],
+    ['Containers',       Array.isArray(n.containers) ? `${n.containers.length} active` : '0'],
+    ['Last Contact',     n.last_seen ? new Date(n.last_seen).toLocaleTimeString() : '—'],
   ];
-  document.getElementById('modal-meta').innerHTML = meta.map(([k,v]) => `
-    <div class="bg-surface border border-surface-border rounded-lg px-3 py-2">
-      <p class="text-xs text-slate-500 mb-0.5">${k}</p>
-      <p class="text-sm text-white font-mono truncate">${escHtml(String(v))}</p>
+
+  document.getElementById('modal-meta').innerHTML = metaItems.map(([k, v]) => `
+    <div class="p-3 rounded-xl border border-zinc-800 bg-zinc-950/60">
+      <p class="text-[10px] font-semibold text-zinc-500 uppercase tracking-wider">${k}</p>
+      <p class="text-xs font-mono text-zinc-200 truncate mt-0.5 font-medium">${escHtml(String(v))}</p>
     </div>`).join('');
 
-  // Render active processes and containers tables.
   renderModalProcesses(n);
   renderModalContainers(n);
 
   document.getElementById('modal').classList.remove('hidden');
   document.body.style.overflow = 'hidden';
 
-  // Destroy old chart instances.
+  // Destroy old charts
   Object.values(charts).forEach(c => c.destroy());
   charts = {};
 
-  // Fetch history.
+  // Fetch 1h history
   try {
-    const res  = await fetch(`/api/v1/nodes/${encodeURIComponent(nodeId)}/history?window=1h`);
-    const pts  = await res.json();
+    const res = await fetch(`/api/v1/nodes/${encodeURIComponent(nodeId)}/history?window=1h`);
+    const pts = await res.json();
     drawChart('chart-cpu',  pts, 'cpu_percent',  '#6366f1');
-    drawChart('chart-mem',  pts, 'mem_percent',  '#06b6d4');
+    drawChart('chart-mem',  pts, 'mem_percent',  '#0284c7');
     drawChart('chart-disk', pts, 'disk_percent', '#f59e0b');
-  } catch(e) {
+  } catch (e) {
     console.warn('history fetch failed', e);
   }
+}
+
+function updateModalLiveBadges(node) {
+  const pill = document.getElementById('modal-status-pill');
+  if (pill) {
+    if (node.status === 'online') {
+      pill.className = 'text-[10px] font-mono px-2 py-0.5 rounded-full uppercase tracking-wider font-semibold bg-emerald-950/60 text-emerald-400 border border-emerald-800/40';
+      pill.textContent = 'ONLINE';
+    } else {
+      pill.className = 'text-[10px] font-mono px-2 py-0.5 rounded-full uppercase tracking-wider font-semibold bg-zinc-900 text-zinc-400 border border-zinc-800';
+      pill.textContent = 'OFFLINE';
+    }
+  }
+
+  const cpuEl = document.getElementById('modal-cur-cpu');
+  const memEl = document.getElementById('modal-cur-mem');
+  const diskEl = document.getElementById('modal-cur-disk');
+  if (cpuEl) cpuEl.textContent = `${(node.cpu_percent || 0).toFixed(1)}%`;
+  if (memEl) memEl.textContent = `${(node.mem_percent || 0).toFixed(1)}%`;
+  if (diskEl) diskEl.textContent = `${(node.disk_percent || 0).toFixed(1)}%`;
 }
 
 function renderModalProcesses(node) {
@@ -647,10 +963,10 @@ function renderModalProcesses(node) {
   if (!tbody || !node) return;
 
   const procs = Array.isArray(node.processes) ? node.processes : [];
-  if (countEl) countEl.textContent = `${procs.length} active`;
+  if (countEl) countEl.textContent = `${procs.length} sampled`;
 
   if (procs.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="5" class="py-6 text-center text-slate-500 font-mono">No active process data available</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="5" class="py-6 text-center text-zinc-500 font-mono">No active process data available</td></tr>`;
     return;
   }
 
@@ -660,33 +976,25 @@ function renderModalProcesses(node) {
     const memPctVal = (p.memory_percent || 0).toFixed(1);
 
     const cpuColor = p.cpu_percent > 50 
-      ? 'text-danger bg-red-950/50 border-danger/40' 
+      ? 'text-rose-400 bg-rose-950/60 border-rose-800/40' 
       : p.cpu_percent > 20 
-      ? 'text-warn bg-amber-950/50 border-warn/40' 
-      : 'text-slate-300 bg-slate-800/60 border-slate-700/50';
-
-    const memColor = p.memory_percent > 30 
-      ? 'text-danger bg-red-950/50 border-danger/40' 
-      : p.memory_percent > 15 
-      ? 'text-warn bg-amber-950/50 border-warn/40' 
-      : 'text-slate-300 bg-slate-800/60 border-slate-700/50';
+      ? 'text-amber-400 bg-amber-950/60 border-amber-800/40' 
+      : 'text-zinc-300 bg-zinc-900 border-zinc-800';
 
     return `
-    <tr class="hover:bg-surface-card/40 transition-colors">
-      <td class="py-2.5 px-3 font-mono text-slate-400">${escHtml(p.pid)}</td>
-      <td class="py-2.5 px-3 font-medium text-white max-w-[200px] truncate" title="${escHtml(p.name)}">
+    <tr class="hover:bg-zinc-900/50 transition-colors">
+      <td class="py-2.5 px-3.5 text-zinc-500">${escHtml(p.pid)}</td>
+      <td class="py-2.5 px-3.5 font-sans font-medium text-white max-w-[220px] truncate" title="${escHtml(p.name)}">
         ${escHtml(p.name)}
       </td>
-      <td class="py-2.5 px-3 text-right">
-        <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-mono font-medium border ${cpuColor}">
+      <td class="py-2.5 px-3.5 text-right">
+        <span class="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-mono border ${cpuColor}">
           ${cpuVal}%
         </span>
       </td>
-      <td class="py-2.5 px-3 text-right font-mono text-slate-300">
-        ${memMB} MB
-      </td>
-      <td class="py-2.5 px-3 text-right">
-        <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-mono font-medium border ${memColor}">
+      <td class="py-2.5 px-3.5 text-right text-zinc-300">${memMB} MB</td>
+      <td class="py-2.5 px-3.5 text-right">
+        <span class="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-mono border border-zinc-800 bg-zinc-900 text-zinc-300">
           ${memPctVal}%
         </span>
       </td>
@@ -703,7 +1011,7 @@ function renderModalContainers(node) {
   if (countEl) countEl.textContent = `${containers.length} containers`;
 
   if (containers.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="6" class="py-6 text-center text-slate-500 font-mono">No active Docker containers detected</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="6" class="py-6 text-center text-zinc-500 font-mono">No active Docker containers detected</td></tr>`;
     return;
   }
 
@@ -711,50 +1019,36 @@ function renderModalContainers(node) {
     const memUsage = fmtBytes(c.memory_usage || 0);
     const memLimit = c.memory_limit > 0 ? fmtBytes(c.memory_limit) : 'unlimited';
     const cpuVal = (c.cpu_percent || 0).toFixed(1);
-
-    let statusClass = 'bg-slate-800/60 text-slate-400 border-slate-700/50';
     const st = (c.status || '').toLowerCase();
+
+    let statusClass = 'bg-zinc-900 text-zinc-400 border-zinc-800';
     if (st === 'running') {
-      statusClass = 'bg-green-950/50 text-ok border-green-800/40';
+      statusClass = 'bg-emerald-950/60 text-emerald-400 border-emerald-800/40';
     } else if (st === 'paused') {
-      statusClass = 'bg-amber-950/50 text-warn border-amber-800/40';
-    } else if (st === 'exited') {
-      statusClass = 'bg-slate-800/60 text-slate-400 border-slate-700/50';
+      statusClass = 'bg-amber-950/60 text-amber-400 border-amber-800/40';
     }
 
-    const cpuColor = c.cpu_percent > 50 
-      ? 'text-danger bg-red-950/50 border-danger/40' 
-      : c.cpu_percent > 20 
-      ? 'text-warn bg-amber-950/50 border-warn/40' 
-      : 'text-slate-300 bg-slate-800/60 border-slate-700/50';
-
     return `
-    <tr class="hover:bg-surface-card/40 transition-colors">
-      <td class="py-2.5 px-3 font-medium text-white max-w-[180px] truncate" title="${escHtml(c.name)}">
-        <div class="flex items-center gap-1.5">
-          <span class="w-1.5 h-1.5 rounded-full ${st === 'running' ? 'bg-ok' : 'bg-slate-500'}"></span>
+    <tr class="hover:bg-zinc-900/50 transition-colors font-mono">
+      <td class="py-2.5 px-3.5 font-sans font-medium text-white max-w-[180px] truncate" title="${escHtml(c.name)}">
+        <div class="flex items-center gap-2">
+          <span class="w-1.5 h-1.5 rounded-full ${st === 'running' ? 'bg-ok' : 'bg-zinc-600'}"></span>
           <span>${escHtml(c.name)}</span>
         </div>
       </td>
-      <td class="py-2.5 px-3 font-mono text-slate-400 max-w-[200px] truncate" title="${escHtml(c.image)}">
+      <td class="py-2.5 px-3.5 text-zinc-400 max-w-[180px] truncate text-xs" title="${escHtml(c.image)}">
         ${escHtml(c.image)}
       </td>
-      <td class="py-2.5 px-3">
-        <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium border ${statusClass}">
+      <td class="py-2.5 px-3.5">
+        <span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] uppercase font-semibold border ${statusClass}">
           ${escHtml(c.status || 'unknown')}
         </span>
       </td>
-      <td class="py-2.5 px-3 text-right">
-        <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-mono font-medium border ${cpuColor}">
-          ${cpuVal}%
-        </span>
-      </td>
-      <td class="py-2.5 px-3 text-right font-mono text-slate-300">
-        ${memUsage} / ${memLimit}
-      </td>
-      <td class="py-2.5 px-3 text-right">
+      <td class="py-2.5 px-3.5 text-right text-zinc-300 font-medium">${cpuVal}%</td>
+      <td class="py-2.5 px-3.5 text-right text-zinc-400">${memUsage} / ${memLimit}</td>
+      <td class="py-2.5 px-3.5 text-right">
         <button onclick="runNodeAction('restart_docker_container', { container_id: '${escHtml(c.name || c.id)}' })"
-          class="px-2 py-0.5 rounded text-[11px] font-mono border border-surface-border bg-surface-card hover:border-accent hover:text-white text-slate-300 transition-colors">
+          class="px-2.5 py-1 rounded-lg text-xs font-mono font-medium border border-zinc-800 bg-zinc-900 hover:bg-zinc-800 hover:border-brand-500/50 hover:text-white text-zinc-300 transition-all">
           Restart
         </button>
       </td>
@@ -776,6 +1070,11 @@ function drawChart(canvasId, points, field, color) {
   const canvas = document.getElementById(canvasId);
   if (!canvas) return;
 
+  const ctx = canvas.getContext('2d');
+  const gradient = ctx.createLinearGradient(0, 0, 0, 160);
+  gradient.addColorStop(0, color + '33');
+  gradient.addColorStop(1, color + '00');
+
   const labels = (points || []).map(p => {
     const d = new Date(p.timestamp);
     return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -790,11 +1089,11 @@ function drawChart(canvasId, points, field, color) {
         data,
         borderColor: color,
         borderWidth: 2,
-        pointRadius: data.length > 60 ? 0 : 2,
+        pointRadius: 0,
         pointHoverRadius: 4,
         fill: true,
-        backgroundColor: color + '1a',
-        tension: 0.3,
+        backgroundColor: gradient,
+        tension: 0.35,
       }]
     },
     options: { ...CHART_DEFAULTS }
@@ -802,16 +1101,7 @@ function drawChart(canvasId, points, field, color) {
 }
 
 /* ================================================================
-   Refresh indicator flash
-   ================================================================ */
-function flashIndicator(color) {
-  const el = document.getElementById('refresh-indicator');
-  el.style.background = color;
-  setTimeout(() => { el.style.background = '#22c55e'; }, 400);
-}
-
-/* ================================================================
-   Remote Node Actions
+   Remote Node Actions & Terminal Console
    ================================================================ */
 let activeActionPolling = null;
 
@@ -825,21 +1115,19 @@ async function runNodeAction(actionName, params = {}) {
   const btn = document.getElementById(btnId);
   const spinner = btn ? btn.querySelector('.spinner') : null;
 
-  // Set visual state on button
   if (btn) {
     btn.disabled = true;
     btn.classList.add('opacity-60');
   }
   if (spinner) spinner.classList.remove('hidden');
 
-  // Set console state
   const consoleName = document.getElementById('console-action-name');
   const consoleBadge = document.getElementById('console-status-badge');
   const consoleDuration = document.getElementById('console-duration-badge');
   const consoleOutput = document.getElementById('action-console-output');
 
   consoleName.textContent = `[${actionName}]`;
-  consoleBadge.className = 'text-[10px] font-mono font-medium px-2 py-0.5 rounded border bg-amber-950/60 text-warn border-amber-800/40';
+  consoleBadge.className = 'text-[10px] font-mono font-medium px-2 py-0.5 rounded border bg-amber-950/60 text-amber-400 border-amber-800/40';
   consoleBadge.textContent = 'DISPATCHING';
   consoleBadge.classList.remove('hidden');
   consoleDuration.classList.add('hidden');
@@ -849,7 +1137,7 @@ async function runNodeAction(actionName, params = {}) {
     const res = await fetch(`/api/v1/nodes/${encodeURIComponent(activeNodeId)}/actions`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: actionName, params: params })
+      body: JSON.stringify({ action: actionName, params })
     });
 
     if (!res.ok) {
@@ -859,12 +1147,11 @@ async function runNodeAction(actionName, params = {}) {
 
     const enq = await res.json();
     const actionId = enq.id;
-    consoleOutput.textContent += `\nAction enqueued (ID: ${actionId}).\nPolling for agent execution result...`;
+    consoleOutput.textContent += `\nAction enqueued (ID: ${actionId}).\nPolling for execution result...`;
     consoleBadge.textContent = 'EXECUTING';
 
-    // Poll for result
     let attempts = 0;
-    const maxAttempts = 30; // 15 seconds max
+    const maxAttempts = 30;
 
     if (activeActionPolling) clearInterval(activeActionPolling);
 
@@ -879,30 +1166,28 @@ async function runNodeAction(actionName, params = {}) {
           clearInterval(activeActionPolling);
           activeActionPolling = null;
 
-          // Restore button state
           if (btn) {
             btn.disabled = false;
             btn.classList.remove('opacity-60');
           }
           if (spinner) spinner.classList.add('hidden');
 
-          // Render duration badge
           consoleDuration.textContent = `${data.duration_ms}ms`;
           consoleDuration.classList.remove('hidden');
 
           if (data.status === 'success') {
-            consoleBadge.className = 'text-[10px] font-mono font-medium px-2 py-0.5 rounded border bg-emerald-950/60 text-ok border-emerald-800/40';
+            consoleBadge.className = 'text-[10px] font-mono font-medium px-2 py-0.5 rounded border bg-emerald-950/60 text-emerald-400 border-emerald-800/40';
             consoleBadge.textContent = `EXIT: 0 (OK)`;
-            consoleOutput.textContent = data.stdout || '(Completed successfully with no standard output)';
+            consoleOutput.textContent = data.stdout || '(Completed successfully with no output)';
             if (data.stderr) {
               consoleOutput.textContent += '\n\n[STDERR]:\n' + data.stderr;
             }
-            toast(`Action '${actionName}' completed successfully (${data.duration_ms}ms)`, 'success');
+            toast(`Action '${actionName}' completed (${data.duration_ms}ms)`, 'success');
           } else {
-            consoleBadge.className = 'text-[10px] font-mono font-medium px-2 py-0.5 rounded border bg-red-950/60 text-danger border-danger/40';
+            consoleBadge.className = 'text-[10px] font-mono font-medium px-2 py-0.5 rounded border bg-rose-950/60 text-rose-400 border-rose-800/40';
             consoleBadge.textContent = `EXIT: ${data.exit_code} (FAILED)`;
-            consoleOutput.textContent = (data.stderr || data.stdout || 'Action execution failed.') + `\n\nExit Code: ${data.exit_code}`;
-            toast(`Action '${actionName}' failed (exit ${data.exit_code})`, 'error');
+            consoleOutput.textContent = (data.stderr || data.stdout || 'Action failed.') + `\n\nExit Code: ${data.exit_code}`;
+            toast(`Action '${actionName}' failed`, 'error');
           }
         }
       } catch (e) {
@@ -917,10 +1202,10 @@ async function runNodeAction(actionName, params = {}) {
           btn.classList.remove('opacity-60');
         }
         if (spinner) spinner.classList.add('hidden');
-        consoleBadge.className = 'text-[10px] font-mono font-medium px-2 py-0.5 rounded border bg-red-950/60 text-danger border-danger/40';
+        consoleBadge.className = 'text-[10px] font-mono font-medium px-2 py-0.5 rounded border bg-rose-950/60 text-rose-400 border-rose-800/40';
         consoleBadge.textContent = 'TIMEOUT';
-        consoleOutput.textContent += '\n\n[ERROR]: Execution polling timed out after 15 seconds. Ensure the telemetry agent is running and connected.';
-        toast(`Action '${actionName}' timed out waiting for agent`, 'error');
+        consoleOutput.textContent += '\n\n[ERROR]: Action timed out after 15 seconds. Ensure agent is online.';
+        toast(`Action '${actionName}' timed out`, 'error');
       }
     }, 500);
 
@@ -930,9 +1215,9 @@ async function runNodeAction(actionName, params = {}) {
       btn.classList.remove('opacity-60');
     }
     if (spinner) spinner.classList.add('hidden');
-    consoleBadge.className = 'text-[10px] font-mono font-medium px-2 py-0.5 rounded border bg-red-950/60 text-danger border-danger/40';
+    consoleBadge.className = 'text-[10px] font-mono font-medium px-2 py-0.5 rounded border bg-rose-950/60 text-rose-400 border-rose-800/40';
     consoleBadge.textContent = 'ERROR';
-    consoleOutput.textContent = `[FAILED TO DISPATCH ACTION]:\n${err.message}`;
+    consoleOutput.textContent = `[FAILED TO DISPATCH]:\n${err.message}`;
     toast(`Failed to trigger action: ${err.message}`, 'error');
   }
 }
@@ -949,7 +1234,7 @@ function clearActionConsole() {
   if (consoleName) consoleName.textContent = '';
   if (consoleBadge) consoleBadge.classList.add('hidden');
   if (consoleDuration) consoleDuration.classList.add('hidden');
-  if (consoleOutput) consoleOutput.textContent = 'Ready. Select an action above to execute remote remediation.';
+  if (consoleOutput) consoleOutput.textContent = 'Ready. Select an action above to trigger remote execution.';
 }
 
 /* ================================================================
@@ -965,8 +1250,11 @@ async function openAlertModal() {
       document.getElementById('alert-cpu-thresh').value = cfg.cpu_threshold || 90;
       document.getElementById('alert-mem-thresh').value = cfg.memory_threshold || 90;
       document.getElementById('alert-disk-thresh').value = cfg.disk_threshold || 90;
+      document.getElementById('label-cpu-thresh').textContent = (cfg.cpu_threshold || 90) + '%';
+      document.getElementById('label-mem-thresh').textContent = (cfg.memory_threshold || 90) + '%';
+      document.getElementById('label-disk-thresh').textContent = (cfg.disk_threshold || 90) + '%';
     }
-  } catch(e) {
+  } catch (e) {
     console.warn('failed to load alert config', e);
   }
   document.getElementById('alert-modal').classList.remove('hidden');
@@ -1006,7 +1294,7 @@ async function saveAlertSettings(event) {
       const err = await res.text();
       toast('Failed to save alert settings: ' + err, 'error');
     }
-  } catch(e) {
+  } catch (e) {
     toast('Error saving alert settings: ' + e.message, 'error');
   } finally {
     btn.disabled = false;
@@ -1036,8 +1324,8 @@ async function testAlertNotification() {
     } else {
       toast('Webhook test failed: ' + (data.error || 'Check URL'), 'error');
     }
-  } catch(e) {
-    toast('Network error triggering test: ' + e.message, 'error');
+  } catch (e) {
+    toast('Network error: ' + e.message, 'error');
   } finally {
     btn.disabled = false;
     btn.classList.remove('opacity-50');
@@ -1045,35 +1333,57 @@ async function testAlertNotification() {
 }
 
 /* ================================================================
-   Toast notifications
+   Modern Floating Toast Notifications (Sonner / shadcn style)
    ================================================================ */
 function toast(msg, type = 'info') {
-  const colors = { 
-    info: 'bg-surface-card border-surface-border text-slate-200', 
-    error: 'bg-red-950/90 border-danger text-red-200',
-    success: 'bg-green-950/90 border-ok text-emerald-200',
-    warn: 'bg-amber-950/90 border-warn text-amber-200'
-  };
-  const el = document.createElement('div');
-  el.className = `border rounded-lg px-4 py-2.5 text-sm shadow-lg ${colors[type] || colors.info}`;
-  el.textContent = msg;
   const container = document.getElementById('toast-container');
+  if (!container) return;
+
+  const config = {
+    info:    { border: 'border-zinc-800',  bg: 'bg-zinc-900/95', text: 'text-zinc-200', icon: 'ℹ' },
+    success: { border: 'border-emerald-800/60', bg: 'bg-zinc-950/95', text: 'text-emerald-300', icon: '✓' },
+    warn:    { border: 'border-amber-800/60',   bg: 'bg-zinc-950/95', text: 'text-amber-300', icon: '⚠' },
+    error:   { border: 'border-rose-800/60',    bg: 'bg-zinc-950/95', text: 'text-rose-300', icon: '✕' },
+  };
+  const theme = config[type] || config.info;
+
+  const el = document.createElement('div');
+  el.className = `pointer-events-auto border ${theme.border} ${theme.bg} backdrop-blur-xl rounded-xl px-4 py-3 text-xs shadow-2xl flex items-center gap-3 transition-all duration-300 transform translate-y-3 opacity-0`;
+  el.innerHTML = `
+    <span class="w-5 h-5 rounded-full flex items-center justify-center font-bold text-[11px] font-mono ${theme.text}">${theme.icon}</span>
+    <span class="font-medium text-zinc-200">${escHtml(msg)}</span>
+  `;
+
   container.appendChild(el);
-  setTimeout(() => el.remove(), 4000);
+  requestAnimationFrame(() => {
+    el.classList.remove('translate-y-3', 'opacity-0');
+  });
+
+  setTimeout(() => {
+    el.classList.add('opacity-0', 'translate-y-2');
+    setTimeout(() => el.remove(), 300);
+  }, 4000);
 }
 
 /* ================================================================
-   Utility helpers
+   Utility Helpers
    ================================================================ */
+function flashIndicator(color) {
+  const el = document.getElementById('refresh-indicator');
+  if (!el) return;
+  el.style.backgroundColor = color;
+  setTimeout(() => { el.style.backgroundColor = '#10b981'; }, 400);
+}
+
 function escHtml(s) {
-  return String(s)
-    .replace(/&/g,'&amp;').replace(/</g,'&lt;')
-    .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  return String(s || '')
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
 function fmtBytes(b) {
   if (!b) return '0 B';
-  const u = ['B','KB','MB','GB','TB'];
+  const u = ['B', 'KB', 'MB', 'GB', 'TB'];
   let i = 0;
   let v = Number(b);
   while (v >= 1024 && i < u.length - 1) { v /= 1024; i++; }
@@ -1082,32 +1392,31 @@ function fmtBytes(b) {
 
 function relativeTime(date) {
   const delta = Math.floor((Date.now() - date) / 1000);
-  if (delta <  60) return `${delta}s ago`;
-  if (delta < 3600) return `${Math.floor(delta/60)}m ago`;
-  return `${Math.floor(delta/3600)}h ago`;
+  if (delta < 5) return 'just now';
+  if (delta < 60) return `${delta}s ago`;
+  if (delta < 3600) return `${Math.floor(delta / 60)}m ago`;
+  return `${Math.floor(delta / 3600)}h ago`;
 }
 
 /* ================================================================
-   Init
+   Initialization
    ================================================================ */
 document.addEventListener('DOMContentLoaded', () => {
   fetchNodes();
   connectSSE();
-
-  // Fallback polling for environments where SSE is proxied away.
   setInterval(fetchNodes, POLL_INTERVAL);
 
-  // Filter on input change.
   document.getElementById('search-input').addEventListener('input', applyFilters);
-  document.getElementById('status-filter').addEventListener('change', applyFilters);
 
-  // ESC closes modal.
   document.addEventListener('keydown', e => {
     if (e.key === 'Escape') {
-      document.getElementById('modal').classList.add('hidden');
-      document.getElementById('alert-modal').classList.add('hidden');
-      document.body.style.overflow = '';
-      activeNodeId = null;
+      closeModal();
+      closeAlertModal();
+    }
+    // Command/Ctrl + K focus search
+    if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+      e.preventDefault();
+      document.getElementById('search-input').focus();
     }
   });
 });
