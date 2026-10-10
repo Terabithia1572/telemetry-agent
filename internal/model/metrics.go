@@ -176,4 +176,25 @@ type TelemetryReport struct {
 	// Network is an ordered slice of per-interface traffic counters.
 	// Loopback and virtual interfaces are excluded by the collector.
 	Network []NetworkStats `json:"network"`
+
+	// Processes holds top resource-consuming processes on the host.
+	Processes []ProcessInfo `json:"processes"`
+}
+
+// ProcessInfo captures resource consumption metrics for a single running process.
+type ProcessInfo struct {
+	// PID is the OS process identifier.
+	PID int32 `json:"pid"`
+
+	// Name is the executable name or command.
+	Name string `json:"name"`
+
+	// CPUPercent is the process CPU utilisation percentage [0, 100*cores].
+	CPUPercent float64 `json:"cpu_percent"`
+
+	// MemoryRSS is the resident set size in bytes.
+	MemoryRSS uint64 `json:"memory_rss"`
+
+	// MemoryPercent is the percentage of total RAM consumed by this process.
+	MemoryPercent float32 `json:"memory_percent"`
 }

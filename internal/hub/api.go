@@ -48,7 +48,7 @@ func NewAPI(store *Store, authToken string, offlineAfter time.Duration, log *slo
 func (a *API) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/v1/metrics", a.handleIngest)
 	mux.HandleFunc("GET /api/v1/nodes", a.handleListNodes)
-	mux.HandleFunc("GET /api/v1/nodes/", a.handleNodeHistory) // matches /api/v1/nodes/{id}/history
+	mux.HandleFunc("GET /api/v1/nodes/", a.handleNodeRoute) // matches /api/v1/nodes/{id} and /api/v1/nodes/{id}/history
 	mux.HandleFunc("GET /api/v1/events", a.handleSSE)
 }
 
@@ -83,6 +83,7 @@ func (a *API) handleIngest(w http.ResponseWriter, r *http.Request) {
 		"node_id", report.NodeID,
 		"cpu", fmt.Sprintf("%.1f%%", p.CPUPercent),
 		"mem", fmt.Sprintf("%.1f%%", p.MemPercent),
+		"procs", len(p.Processes),
 	)
 
 	// Notify SSE subscribers so the dashboard updates immediately.
@@ -106,6 +107,10 @@ func extractIngestParams(r *model.TelemetryReport) IngestParams {
 		LastSeen:      r.CollectedAt,
 		CPUPercent:    r.CPU.UsagePercent,
 		MemPercent:    r.Memory.Physical.UsagePercent,
+		Processes:     r.Processes,
+	}
+	if p.Processes == nil {
+		p.Processes = []model.ProcessInfo{}
 	}
 
 	// Aggregate disk usage: weighted by total bytes across all mounts.
@@ -146,38 +151,60 @@ func (a *API) handleListNodes(w http.ResponseWriter, r *http.Request) {
 	a.jsonOK(w, nodes)
 }
 
-// ── Node history ──────────────────────────────────────────────────────────────
+// ── Node route (/api/v1/nodes/{id} and /api/v1/nodes/{id}/history) ────────────
 
-// handleNodeHistory matches /api/v1/nodes/{id}/history.
-func (a *API) handleNodeHistory(w http.ResponseWriter, r *http.Request) {
-	// Extract node ID from path: /api/v1/nodes/<id>/history
+// handleNodeRoute handles /api/v1/nodes/{id} and /api/v1/nodes/{id}/history.
+func (a *API) handleNodeRoute(w http.ResponseWriter, r *http.Request) {
 	path := strings.TrimPrefix(r.URL.Path, "/api/v1/nodes/")
-	path = strings.TrimSuffix(path, "/history")
-	nodeID := path
 
+	// Check if this is a history query
+	if strings.HasSuffix(path, "/history") {
+		nodeID := strings.TrimSuffix(path, "/history")
+		nodeID = strings.Trim(nodeID, "/")
+		if nodeID == "" || strings.Contains(nodeID, "/") {
+			a.jsonError(w, http.StatusBadRequest, "invalid node id in path")
+			return
+		}
+
+		windowStr := r.URL.Query().Get("window")
+		window := time.Hour // default 1 h
+		if windowStr != "" {
+			if d, err := time.ParseDuration(windowStr); err == nil && d > 0 {
+				window = d
+			}
+		}
+
+		pts, err := a.store.GetHistory(r.Context(), nodeID, window, 240)
+		if err != nil {
+			a.log.Error("get history: store error", "node_id", nodeID, "error", err)
+			a.jsonError(w, http.StatusInternalServerError, "storage error")
+			return
+		}
+		if pts == nil {
+			pts = []MetricPoint{}
+		}
+		a.jsonOK(w, pts)
+		return
+	}
+
+	// Single node query: /api/v1/nodes/{id}
+	nodeID := strings.Trim(path, "/")
 	if nodeID == "" || strings.Contains(nodeID, "/") {
 		a.jsonError(w, http.StatusBadRequest, "invalid node id in path")
 		return
 	}
 
-	windowStr := r.URL.Query().Get("window")
-	window := time.Hour // default 1 h
-	if windowStr != "" {
-		if d, err := time.ParseDuration(windowStr); err == nil && d > 0 {
-			window = d
-		}
-	}
-
-	pts, err := a.store.GetHistory(r.Context(), nodeID, window, 240)
+	node, err := a.store.GetNode(r.Context(), nodeID, a.offlineAfter)
 	if err != nil {
-		a.log.Error("get history: store error", "node_id", nodeID, "error", err)
+		a.log.Error("get node: store error", "node_id", nodeID, "error", err)
 		a.jsonError(w, http.StatusInternalServerError, "storage error")
 		return
 	}
-	if pts == nil {
-		pts = []MetricPoint{}
+	if node == nil {
+		a.jsonError(w, http.StatusNotFound, "node not found")
+		return
 	}
-	a.jsonOK(w, pts)
+	a.jsonOK(w, node)
 }
 
 // ── SSE ───────────────────────────────────────────────────────────────────────

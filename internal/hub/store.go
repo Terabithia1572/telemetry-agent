@@ -16,11 +16,14 @@ package hub
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
 
 	_ "modernc.org/sqlite" // register "sqlite" driver
+
+	"github.com/telemetry-agent/internal/model"
 )
 
 // Store is the single access point to the SQLite database.
@@ -32,19 +35,20 @@ type Store struct {
 // NodeRow is a flattened view of the nodes table joined with the latest
 // metrics row. It is used exclusively for list/read queries.
 type NodeRow struct {
-	NodeID        string    `json:"node_id"`
-	Hostname      string    `json:"hostname"`
-	OS            string    `json:"os"`
-	Platform      string    `json:"platform"`
-	KernelVersion string    `json:"kernel_version"`
-	AgentVersion  string    `json:"agent_version"`
-	Status        string    `json:"status"` // "online" | "offline"
-	LastSeen      time.Time `json:"last_seen"`
-	CPUPercent    float64   `json:"cpu_percent"`
-	MemPercent    float64   `json:"mem_percent"`
-	DiskPercent   float64   `json:"disk_percent"`
-	NetRxBytes    uint64    `json:"net_rx_bytes"`
-	NetTxBytes    uint64   `json:"net_tx_bytes"`
+	NodeID        string              `json:"node_id"`
+	Hostname      string              `json:"hostname"`
+	OS            string              `json:"os"`
+	Platform      string              `json:"platform"`
+	KernelVersion string              `json:"kernel_version"`
+	AgentVersion  string              `json:"agent_version"`
+	Status        string              `json:"status"` // "online" | "offline"
+	LastSeen      time.Time           `json:"last_seen"`
+	CPUPercent    float64             `json:"cpu_percent"`
+	MemPercent    float64             `json:"mem_percent"`
+	DiskPercent   float64             `json:"disk_percent"`
+	NetRxBytes    uint64              `json:"net_rx_bytes"`
+	NetTxBytes    uint64              `json:"net_tx_bytes"`
+	Processes     []model.ProcessInfo `json:"processes"`
 }
 
 // MetricPoint is a single row from metrics_history, returned by history queries.
@@ -96,7 +100,8 @@ func applySchema(db *sql.DB) error {
 			kernel_version TEXT NOT NULL DEFAULT '',
 			agent_version  TEXT NOT NULL DEFAULT '',
 			status         TEXT NOT NULL DEFAULT 'offline',
-			last_seen      DATETIME NOT NULL DEFAULT (datetime('now'))
+			last_seen      DATETIME NOT NULL DEFAULT (datetime('now')),
+			processes      TEXT NOT NULL DEFAULT '[]'
 		)`,
 		`CREATE TABLE IF NOT EXISTS metrics_history (
 			id           INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -116,6 +121,10 @@ func applySchema(db *sql.DB) error {
 			return fmt.Errorf("store: schema migration failed [%s]: %w", stmt[:min(40, len(stmt))], err)
 		}
 	}
+
+	// Ensure processes column exists in case nodes table was created in an earlier migration
+	_, _ = db.Exec(`ALTER TABLE nodes ADD COLUMN processes TEXT NOT NULL DEFAULT '[]'`)
+
 	return nil
 }
 
@@ -137,9 +146,14 @@ func (s *Store) UpsertNode(ctx context.Context, p IngestParams) error {
 	// comparisons with datetime('now', ...) work without timezone confusion.
 	lastSeenStr := p.LastSeen.UTC().Format("2006-01-02 15:04:05")
 
+	procsJSON, err := json.Marshal(p.Processes)
+	if err != nil || len(procsJSON) == 0 {
+		procsJSON = []byte("[]")
+	}
+
 	_, err = tx.ExecContext(ctx, `
-		INSERT INTO nodes (node_id, hostname, os, platform, kernel_version, agent_version, status, last_seen)
-		VALUES (?, ?, ?, ?, ?, ?, 'online', ?)
+		INSERT INTO nodes (node_id, hostname, os, platform, kernel_version, agent_version, status, last_seen, processes)
+		VALUES (?, ?, ?, ?, ?, ?, 'online', ?, ?)
 		ON CONFLICT(node_id) DO UPDATE SET
 			hostname       = excluded.hostname,
 			os             = excluded.os,
@@ -147,8 +161,9 @@ func (s *Store) UpsertNode(ctx context.Context, p IngestParams) error {
 			kernel_version = excluded.kernel_version,
 			agent_version  = excluded.agent_version,
 			status         = 'online',
-			last_seen      = excluded.last_seen`,
-		p.NodeID, p.Hostname, p.OS, p.Platform, p.KernelVersion, p.AgentVersion, lastSeenStr,
+			last_seen      = excluded.last_seen,
+			processes      = excluded.processes`,
+		p.NodeID, p.Hostname, p.OS, p.Platform, p.KernelVersion, p.AgentVersion, lastSeenStr, string(procsJSON),
 	)
 	if err != nil {
 		return fmt.Errorf("store: upsert node: %w", err)
@@ -175,13 +190,14 @@ func (s *Store) UpsertNode(ctx context.Context, p IngestParams) error {
 	return tx.Commit()
 }
 
-// GetNodes returns all known nodes with their latest metrics.
+// GetNodes returns all known nodes with their latest metrics and active processes.
 // A node is considered "offline" when its last_seen is older than offlineAfter.
 func (s *Store) GetNodes(ctx context.Context, offlineAfter time.Duration) ([]NodeRow, error) {
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT
 			n.node_id, n.hostname, n.os, n.platform, n.kernel_version, n.agent_version,
 			n.last_seen,
+			COALESCE(n.processes, '[]'),
 			COALESCE(m.cpu_percent,  0),
 			COALESCE(m.mem_percent,  0),
 			COALESCE(m.disk_percent, 0),
@@ -205,15 +221,20 @@ func (s *Store) GetNodes(ctx context.Context, offlineAfter time.Duration) ([]Nod
 	for rows.Next() {
 		var r NodeRow
 		var lastSeenStr string
+		var procsJSON string
 		if err := rows.Scan(
 			&r.NodeID, &r.Hostname, &r.OS, &r.Platform, &r.KernelVersion, &r.AgentVersion,
 			&lastSeenStr,
+			&procsJSON,
 			&r.CPUPercent, &r.MemPercent, &r.DiskPercent, &r.NetRxBytes, &r.NetTxBytes,
 		); err != nil {
 			return nil, fmt.Errorf("store: scan node row: %w", err)
 		}
 		// Parse SQLite datetime string using multi-format helper.
 		r.LastSeen = parseSQLiteTime(lastSeenStr)
+		if err := json.Unmarshal([]byte(procsJSON), &r.Processes); err != nil || r.Processes == nil {
+			r.Processes = []model.ProcessInfo{}
+		}
 
 		if r.LastSeen.Before(cutoff) {
 			r.Status = "offline"
@@ -223,6 +244,56 @@ func (s *Store) GetNodes(ctx context.Context, offlineAfter time.Duration) ([]Nod
 		result = append(result, r)
 	}
 	return result, rows.Err()
+}
+
+// GetNode returns details for a single node specified by nodeID.
+func (s *Store) GetNode(ctx context.Context, nodeID string, offlineAfter time.Duration) (*NodeRow, error) {
+	row := s.db.QueryRowContext(ctx, `
+		SELECT
+			n.node_id, n.hostname, n.os, n.platform, n.kernel_version, n.agent_version,
+			n.last_seen,
+			COALESCE(n.processes, '[]'),
+			COALESCE(m.cpu_percent,  0),
+			COALESCE(m.mem_percent,  0),
+			COALESCE(m.disk_percent, 0),
+			COALESCE(m.net_rx_bytes, 0),
+			COALESCE(m.net_tx_bytes, 0)
+		FROM nodes n
+		LEFT JOIN metrics_history m ON m.node_id = n.node_id
+			AND m.id = (
+				SELECT id FROM metrics_history
+				WHERE node_id = n.node_id
+				ORDER BY timestamp DESC LIMIT 1
+			)
+		WHERE n.node_id = ?`, nodeID)
+
+	var r NodeRow
+	var lastSeenStr string
+	var procsJSON string
+	if err := row.Scan(
+		&r.NodeID, &r.Hostname, &r.OS, &r.Platform, &r.KernelVersion, &r.AgentVersion,
+		&lastSeenStr,
+		&procsJSON,
+		&r.CPUPercent, &r.MemPercent, &r.DiskPercent, &r.NetRxBytes, &r.NetTxBytes,
+	); err != nil {
+		if err == sql.ErrNoRows {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("store: get node: %w", err)
+	}
+
+	r.LastSeen = parseSQLiteTime(lastSeenStr)
+	if err := json.Unmarshal([]byte(procsJSON), &r.Processes); err != nil || r.Processes == nil {
+		r.Processes = []model.ProcessInfo{}
+	}
+
+	cutoff := time.Now().UTC().Add(-offlineAfter)
+	if r.LastSeen.Before(cutoff) {
+		r.Status = "offline"
+	} else {
+		r.Status = "online"
+	}
+	return &r, nil
 }
 
 // GetHistory returns up to limit metric points for nodeID within the last
@@ -273,6 +344,7 @@ type IngestParams struct {
 	DiskPercent   float64
 	NetRxBytes    uint64
 	NetTxBytes    uint64
+	Processes     []model.ProcessInfo
 }
 
 // min returns the smaller of a and b (backport for Go <1.21 build compat).

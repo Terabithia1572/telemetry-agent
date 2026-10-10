@@ -83,6 +83,7 @@ func main() {
 			collector.NewMemoryCollector(),
 			collector.NewDiskCollector(),
 			collector.NewNetworkCollector(),
+			collector.NewProcessCollector(10),
 		),
 	)
 
