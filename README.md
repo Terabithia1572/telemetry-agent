@@ -435,6 +435,7 @@ go vet ./...
 | **Binary Size** | Minimal | Single stripped binary (`~7 MB` Agent, `~11 MB` Hub with embedded UI) |
 | **Dependencies** | Zero | `CGO_ENABLED=0` static binary, runs on bare Alpine or `scratch` |
 
+
 ---
 
 ### 🇬🇧 Author & Copyright
