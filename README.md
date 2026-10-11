@@ -142,7 +142,6 @@ Tarayıcınızda **[http://localhost:18080](http://localhost:18080)** adresini a
 ./dist/telemetry-agent -hub-url=http://127.0.0.1:18080 -interval=5s
 ```
 
-
 ---
 
 ## 🇹🇷 Uzaktan Aksiyonlar ve İyileştirme
